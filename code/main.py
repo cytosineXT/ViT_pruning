@@ -7,14 +7,13 @@ from torch import nn, einsum
 from torch.utils.data import DataLoader, SequentialSampler, RandomSampler
 from torchvision.datasets import CIFAR10, CIFAR100, ImageNet, ImageFolder
 from torchvision import transforms
-from torch.optim import Adam, lr_scheduler
+# from torch.optim import Adam, lr_scheduler
 from tqdm import tqdm
 from utils import train_model, print_accuracy, train_distillation, train
-from typing import Union
-from sklearn.metrics import accuracy_score
-from reorder_head_neuron import compute_neuron_head_importance, reorder_neuron_head
-
-from functools import partial
+# from typing import Union
+# from sklearn.metrics import accuracy_score
+# from reorder_head_neuron import compute_neuron_head_importance, reorder_neuron_head
+# from functools import partial
 
 import argparse
 
@@ -87,21 +86,6 @@ parser.add_argument(
     help="Width of feed forward layer (default: 1.0)",
 )
 parser.add_argument(
-    "--epochs", type=int, default=50, help="Number of epochs (default: 50)"
-)
-parser.add_argument(
-    "--device",
-    type=str,
-    default="cuda:0",
-    help="Device to train (or test) on (default: 'cuda:0')",
-)
-parser.add_argument(
-    "--batch_size", type=int, default=256, help="Batch size (default: 64)"
-)
-parser.add_argument(
-    "--num_classes", type=int, default=1000, help="Number of classes (default: 1000)"
-)
-parser.add_argument(
     "--img_size",
     type=int,
     default=224,
@@ -133,6 +117,21 @@ parser.add_argument("--init_scratch", action="store_false", help="To start from 
 parser.add_argument("--training_phase", default="width", type=str,
 # parser.add_argument("--training_phase", default="finetuning", type=str,
                         help="can be finetuning, width, depth")
+parser.add_argument(
+    "--epochs", type=int, default=50, help="Number of epochs (default: 50)"
+)
+parser.add_argument(
+    "--device",
+    type=str,
+    default="cuda:1",
+    help="Device to train (or test) on (default: 'cuda:0')",
+)
+parser.add_argument(
+    "--batch_size", type=int, default=256, help="Batch size (default: 64)"
+)
+parser.add_argument(
+    "--num_classes", type=int, default=200, help="Number of classes (default: 1000)"
+)
 args = parser.parse_args()
 
 if torch.cuda.is_available():
@@ -216,7 +215,7 @@ if args.training_phase == "width":
           train_loader,
           test_loader,
           mode='width',
-          epochs=300,
+          epochs=100,
           loss_fn=nn.CrossEntropyLoss(),
           model_path=args.save_path,
           device=device,
