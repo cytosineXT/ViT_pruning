@@ -182,7 +182,7 @@ def train(
             for i, width in enumerate(tqdm(width_list, desc="Width", leave=False)):
                 print(f"\nWidth: {width}")
                 model.apply(lambda m: setattr(m, 'width_mult', width))
-                path = os.path.join("code/models", f"Width{width}_model_width_distillation.pt")
+                path = os.path.join("../models", f"Width{width}_model_width_distillation.pt")
                 train_distillation(
                     model, teacher_model = teacher_model,path=path,
                     train_data = train_data, eval_data = eval_data,
@@ -192,7 +192,7 @@ def train(
                 model.load_state_dict(new_weights, strict=False)
             print("Fine tuning after distillation")
             for i, width in enumerate(tqdm(width_list, desc="Width", leave=False)):
-                path = os.path.join("code/models", f"Width{width}_model_width_distillation.pt")
+                path = os.path.join("../models", f"Width{width}_model_width_distillation.pt")
                 print(f"\nWidth: {width}")
                 model.apply(lambda m: setattr(m, 'width_mult', width))
                 train_model(
@@ -223,12 +223,12 @@ def train(
             )
             teacher_model.apply(lambda m: setattr(m, 'width_mult', width))
             teacher_model.to(device)
-            path = os.path.join("code/models", f"Width{width}_model_width_distillation.pt")
+            path = os.path.join("../models", f"Width{width}_model_width_distillation.pt")
             teacher_model.load_state_dict(torch.load(path))
             for i, depth in enumerate(tqdm(depth_list, desc="Depth", leave=False)):
                 model.apply(lambda m: setattr(m, 'width_mult', width))
                 model.apply(lambda m: setattr(m, 'depth', depth))
-                path = os.path.join("code/models", f"Width{width}_Depth{depth}_model_width_distillation.pt")
+                path = os.path.join("../models", f"Width{width}_Depth{depth}_model_width_distillation.pt")
                 print("Training Distillation")
                 train_distillation(
                     model, teacher_model=teacher_model, path=path,
@@ -534,7 +534,7 @@ def train_distillation(model, teacher_model, train_data, eval_data, path,
         scheduler.step(metrics=eval_loss)
 
         if eval_loss < best_eval_loss:
-            torch.save(model.state_dict(), path)#草 就这行 老是存不了
+            torch.save(model.state_dict(), path)
             best_eval_loss = eval_loss
 
         print(f"Validation loss = {eval_loss}")
