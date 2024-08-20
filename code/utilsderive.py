@@ -85,11 +85,21 @@ def compute_neuron_head_importance(
         batch = tuple(t.to(device) for t in batch)
         input_ids, label_ids = batch
 
+        '''
         # calculate head importance
         outputs = model(input_ids, head_mask=head_mask)
         loss = loss_fn(outputs, label_ids)
         loss.backward()
         head_importance += head_mask.grad.abs().detach()
+        '''
+        # calculate head importance using Hessian (second-order derivative)
+        outputs = model(input_ids, head_mask=head_mask)
+        loss = loss_fn(outputs, label_ids)
+        grads = torch.autograd.grad(loss, head_mask, create_graph=True)[0]
+        for layer in range(n_layers):
+            for head in range(n_heads):
+                hessian = torch.autograd.grad(grads[layer, head], head_mask, retain_graph=True)[0]
+                head_importance[layer, head] += hessian.abs().detach()
 
         # calculate  neuron importance
         for w1, b1, w2, current_importance in zip(intermediate_weight, intermediate_bias, output_weight, neuron_importance):

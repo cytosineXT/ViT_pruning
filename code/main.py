@@ -33,15 +33,15 @@ parser.add_argument(
 parser.add_argument(
     "--path_train",
     type=str,
-    default="/home/jxt/docworkspace/ViT/tiny-imagenet-200/train",
+    default="./tiny-imagenet-200/train",
     #default="F:/Download/ImageNet/train",
     help="Path to train dataset (default: '../data/ImageNet200FullSize/train')",
 )
 parser.add_argument(
     "--path_val",
     type=str,
-    default="/home/jxt/docworkspace/ViT/tiny-imagenet-200/val",
-    # default="/home/jxt/docworkspace/ViT/tiny-imagenet-200/val",
+    default="./tiny-imagenet-200/val",
+    # default="./tiny-imagenet-200/val",
     #default="F:/Download/ImageNet/val",
     help="Path to validation dataset (default: '../data/ImageNet200FullSize/val')",
 )
@@ -59,19 +59,19 @@ parser.add_argument(
 parser.add_argument(
     "--model_path",
     type=str,
-    default="/home/jxt/docworkspace/ViT/code/models/vit-small-224.pth",
+    default="./code/models/vit-small-224.pth",
     help="Path to model initial checkpoint OR to store state dictionary if pretrained is true (default: './models/vit-small-224.pth')",
 )
 parser.add_argument(
     "--save_path",
     type=str,
-    default="/home/jxt/docworkspace/ViT/code/models/vit-small-224-finetuned-1.0.pth",
+    default="./code/models/vit-small-224-finetuned-1.0.pth",
     help="Path to save model checkpoint OR for loading test model (default: './models/vit-small-224-finetuned-1.0.pth')",
 )
 parser.add_argument(
     "--reorder_path",
     type=str,
-    default="/home/jxt/docworkspace/ViT/code/models/vit-small-224-finetuned-1.0-reordered.pth",
+    default="./code/models/vit-small-224-finetuned-1.0-reordered.pth",
     help="Path to save reordered model checkpoint (default: './models/vit-small-224-finetuned-1.0-reordered.pth')",
 )
 parser.add_argument(
@@ -92,11 +92,11 @@ parser.add_argument(
 parser.add_argument(
     "--device",
     type=str,
-    default="cuda:1",
+    default="cuda:0",
     help="Device to train (or test) on (default: 'cuda:0')",
 )
 parser.add_argument(
-    "--batch_size", type=int, default=128, help="Batch size (default: 64)"
+    "--batch_size", type=int, default=256, help="Batch size (default: 64)"
 )
 parser.add_argument(
     "--num_classes", type=int, default=1000, help="Number of classes (default: 1000)"
@@ -216,7 +216,7 @@ if args.training_phase == "width":
           train_loader,
           test_loader,
           mode='width',
-          epochs=3,
+          epochs=300,
           loss_fn=nn.CrossEntropyLoss(),
           model_path=args.save_path,
           device=device,

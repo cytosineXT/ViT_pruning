@@ -85,11 +85,23 @@ def compute_neuron_head_importance(
         batch = tuple(t.to(device) for t in batch)
         input_ids, label_ids = batch
 
-        # calculate head importance
+        '''
+        #本来长这样
         outputs = model(input_ids, head_mask=head_mask)
         loss = loss_fn(outputs, label_ids)
         loss.backward()
         head_importance += head_mask.grad.abs().detach()
+        '''
+        # calculate head importance
+        outputs = model(input_ids)
+        attn_weights = outputs.attentions  # assuming this is a list of attention scores per layer
+        for layer in range(n_layers):
+            for head in range(n_heads):
+                # Computing entropy for each head
+                probs = attn_weights[layer][:, head, :, :].mean(dim=0)
+                entropy = -(probs * torch.log(probs + 1e-10)).sum()
+                head_importance[layer, head] += entropy.detach()
+
 
         # calculate  neuron importance
         for w1, b1, w2, current_importance in zip(intermediate_weight, intermediate_bias, output_weight, neuron_importance):

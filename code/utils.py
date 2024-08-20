@@ -47,16 +47,82 @@ def soft_cross_entropy(predicts, targets):
     targets_prob = nn.functional.softmax(targets, dim=-1)
     return -torch.sum(targets_prob * student_likelihood, dim=-1).mean()
 
+import matplotlib.pyplot as plt
+import seaborn as sns
+def visualize_head_importance(head_importance):
+    """
+    可视化 head_importance 的热力图
+    Args:
+        head_importance (torch.Tensor): 尺寸为 (n_layers, n_heads) 的 tensor，表示每一层每个注意力头的重要性
+    """
+    # 确保 head_importance 是在 CPU 上的 numpy 数组
+    if isinstance(head_importance, torch.Tensor):
+        head_importance = head_importance.detach().cpu().numpy()
+
+    plt.figure(figsize=(12, 6))
+    sns.heatmap(head_importance, annot=True, cmap="YlGnBu", cbar=True)
+    
+    plt.title("Head Importance per Layer")
+    plt.xlabel("Attention Heads")
+    plt.ylabel("Transformer Layers")
+    plt.savefig('headimportance.png') #这里可能可以修改
+
+def visualize_neuron_importance(neuron_importance):
+    """
+    Visualizes the neuron importance as a heatmap.
+    
+    Args:
+    - neuron_importance (list of Tensors): List of tensors where each tensor contains the importance of neurons in a specific layer.
+    """
+    
+    # Convert neuron_importance to a numpy array for easy plotting
+    importance_matrix = np.array([imp.cpu().numpy() for imp in neuron_importance])
+    # Plot the heatmap
+    plt.figure(figsize=(20, 10))  # Adjust the size based on your needs
+    sns.heatmap(importance_matrix, cmap="YlGnBu", cbar=True)
+    plt.title("Neuron Importance Heatmap")
+    plt.xlabel("Neuron Index")
+    plt.ylabel("Layer Index")
+    plt.savefig('neuronimportance.png')
+
+def visualize_neuron_importance2(neuron_importance, layer_idx=None):
+    """
+    Visualizes the neuron importance using a bar chart.
+    
+    Args:
+    - neuron_importance (list of Tensors): List of tensors where each tensor contains the importance of neurons in a specific layer.
+    - layer_idx (int, optional): If specified, only visualizes the importance for the given layer index. Otherwise, visualizes all layers.
+    """
+
+    # Convert neuron_importance to a numpy array for easy plotting
+    importance_values = [imp.cpu().numpy() for imp in neuron_importance]
+
+    if layer_idx is not None:
+        # Plot for a specific layer
+        plt.figure(figsize=(10, 6))
+        plt.bar(range(len(importance_values[layer_idx])), importance_values[layer_idx])
+        plt.title(f'Neuron Importance for Layer {layer_idx}')
+        plt.xlabel('Neuron Index')
+        plt.ylabel('Importance Score')
+        plt.savefig('neuronimportance.png')
+    else:
+        # Plot all layers
+        for i, importance in enumerate(importance_values):
+            plt.figure(figsize=(10, 6))
+            plt.bar(range(len(importance)), importance)
+            plt.title(f'Neuron Importance for Layer {i}')
+            plt.xlabel('Neuron Index')
+            plt.ylabel('Importance Score')
+            plt.savefig(f'neuronimportance{i}.png')
+
 
 """### Importance reordering"""
-
 def compute_neuron_head_importance(
     eval_dataloader, model, n_layers, n_heads,device, loss_fn=nn.CrossEntropyLoss()
     ):
     """ This method shows how to compute:
         - neuron importance scores based on loss according to http://arxiv.org/abs/1905.10650
     """
-    
     head_importance = torch.zeros(n_layers, n_heads).to(device)
     head_mask = torch.ones(n_layers, n_heads).to(device)
     head_mask.requires_grad_(requires_grad=True)
@@ -85,11 +151,31 @@ def compute_neuron_head_importance(
         batch = tuple(t.to(device) for t in batch)
         input_ids, label_ids = batch
 
-        # calculate head importance
+        #-----------一 loss重要性----------------
+        # calculate head importance 
         outputs = model(input_ids, head_mask=head_mask)
         loss = loss_fn(outputs, label_ids)
         loss.backward()
         head_importance += head_mask.grad.abs().detach()
+
+        # #-----------二 entropy重要性----------------
+        # outputs = model(input_ids)
+        # attn_weights = outputs.attentions  # assuming this is a list of attention scores per layer
+        # for layer in range(n_layers):
+        #     for head in range(n_heads):
+        #         # Computing entropy for each head
+        #         probs = attn_weights[layer][:, head, :, :].mean(dim=0)
+        #         entropy = -(probs * torch.log(probs + 1e-10)).sum()
+        #         head_importance[layer, head] += entropy.detach()
+        
+        # #-----------三 hessian重要性----------------
+        # outputs = model(input_ids, head_mask=head_mask)
+        # loss = loss_fn(outputs, label_ids)
+        # grads = torch.autograd.grad(loss, head_mask, create_graph=True)[0]
+        # for layer in range(n_layers):
+        #     for head in range(n_heads):
+        #         hessian = torch.autograd.grad(grads[layer, head], head_mask, retain_graph=True)[0]
+        #         head_importance[layer, head] += hessian.abs().detach()
 
         # calculate  neuron importance
         for w1, b1, w2, current_importance in zip(intermediate_weight, intermediate_bias, output_weight, neuron_importance):
@@ -103,7 +189,7 @@ def reorder_neuron_head(model, head_importance, neuron_importance):
     model = model.module if hasattr(model, 'module') else model
 
     # reorder heads and ffn neurons
-    for layer, current_importance in enumerate(neuron_importance):
+    for layer, current_importance in enumerate(neuron_importance): #草 之前没报错是因为之前没跑 neuron_importance是空的。。
         # reorder heads --> [layer][0]: attention module
         idx = torch.sort(head_importance[layer], descending=True)[-1]
         model.transformer.layers[layer][0].fn.reorder_heads(idx)
@@ -111,6 +197,27 @@ def reorder_neuron_head(model, head_importance, neuron_importance):
         idx = torch.sort(current_importance, descending=True)[-1]
         model.transformer.layers[layer][1].fn.reorder_intermediate_neurons(idx)
         model.transformer.layers[layer][1].fn.reorder_output_neurons(idx)
+
+    for layer, current_importance in enumerate(neuron_importance):
+        # reorder heads --> [layer]: block module
+        idx = torch.sort(head_importance[layer], descending=True)[-1]
+        model.blocks[layer].attn.reorder_heads(idx)
+
+    #     # reorder neurons --> MLP module
+    #     idx = torch.sort(current_importance, descending=True)[-1]
+    #     model.blocks[layer].mlp.reorder_intermediate_neurons(idx)
+    #     model.blocks[layer].mlp.reorder_output_neurons(idx)
+    '''
+    发生异常: AttributeError
+    'Mlp' object has no attribute 'reorder_intermediate_neurons'
+    File "/home/ljm/workspace/jxt/ViT_pruning/code/utils.py", line 187, in reorder_neuron_head
+        model.blocks[layer].mlp.reorder_intermediate_neurons(idx)
+    File "/home/ljm/workspace/jxt/ViT_pruning/code/utils.py", line 257, in train
+        reorder_neuron_head(model, head_importance, neuron_importance) #这里是将其按重要性排序的
+    File "/home/ljm/workspace/jxt/ViT_pruning/code/main.py", line 215, in <module>
+        train(model,
+    AttributeError: 'Mlp' object has no attribute 'reorder_intermediate_neurons'
+    '''
 
 """### Training"""
 
@@ -177,12 +284,14 @@ def train(
                 eval_data, model, args["depth"], args["heads"],
                 loss_fn=loss_fn, device=device
                 )
-            reorder_neuron_head(model, head_importance, neuron_importance) #这里是将其按重要性排序的
+            visualize_head_importance(head_importance)
+            visualize_neuron_importance(neuron_importance)
+            # reorder_neuron_head(model, head_importance, neuron_importance) #这里是将其按重要性排序的 草 跑不了就别跑 nnd
             #width_list = sorted(width_list, reverse=True)
             for i, width in enumerate(tqdm(width_list, desc="Width", leave=False)):
                 print(f"\nWidth: {width}")
                 model.apply(lambda m: setattr(m, 'width_mult', width))
-                path = os.path.join("code/models", f"Width{width}_model_width_distillation.pt")
+                path = os.path.join("code/modelsentro", f"Width{width}_model_width_distillation.pt")
                 train_distillation(
                     model, teacher_model = teacher_model,path=path,
                     train_data = train_data, eval_data = eval_data,
@@ -192,7 +301,7 @@ def train(
                 model.load_state_dict(new_weights, strict=False)
             print("Fine tuning after distillation")
             for i, width in enumerate(tqdm(width_list, desc="Width", leave=False)):
-                path = os.path.join("code/models", f"Width{width}_model_width_distillation.pt")
+                path = os.path.join("code/modelsentro", f"Width{width}_model_width_distillation.pt")
                 print(f"\nWidth: {width}")
                 model.apply(lambda m: setattr(m, 'width_mult', width))
                 train_model(
@@ -223,12 +332,12 @@ def train(
             )
             teacher_model.apply(lambda m: setattr(m, 'width_mult', width))
             teacher_model.to(device)
-            path = os.path.join("code/models", f"Width{width}_model_width_distillation.pt")
+            path = os.path.join("code/modelsentro", f"Width{width}_model_width_distillation.pt")
             teacher_model.load_state_dict(torch.load(path))
             for i, depth in enumerate(tqdm(depth_list, desc="Depth", leave=False)):
                 model.apply(lambda m: setattr(m, 'width_mult', width))
                 model.apply(lambda m: setattr(m, 'depth', depth))
-                path = os.path.join("code/models", f"Width{width}_Depth{depth}_model_width_distillation.pt")
+                path = os.path.join("code/modelsentro", f"Width{width}_Depth{depth}_model_width_distillation.pt")
                 print("Training Distillation")
                 train_distillation(
                     model, teacher_model=teacher_model, path=path,
