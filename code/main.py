@@ -9,7 +9,7 @@ from torchvision.datasets import CIFAR10, CIFAR100, ImageNet, ImageFolder
 from torchvision import transforms
 from torch.optim import Adam, lr_scheduler
 from tqdm import tqdm
-from dust.utils import train_model, print_accuracy, train_distillation, train
+from utils import train_model, print_accuracy, train_distillation, train
 from typing import Union
 from sklearn.metrics import accuracy_score
 from reorder_head_neuron import compute_neuron_head_importance, reorder_neuron_head
@@ -60,19 +60,19 @@ parser.add_argument(
     "--model_path",
     type=str,
     default="/home/jxt/docworkspace/ViT/code/models/vit-small-224.pth",
-    help="Path to model initial checkpoint OR to store state dictionary if pretrained is true (default: '../models/vit-small-224.pth')",
+    help="Path to model initial checkpoint OR to store state dictionary if pretrained is true (default: './models/vit-small-224.pth')",
 )
 parser.add_argument(
     "--save_path",
     type=str,
     default="/home/jxt/docworkspace/ViT/code/models/vit-small-224-finetuned-1.0.pth",
-    help="Path to save model checkpoint OR for loading test model (default: '../models/vit-small-224-finetuned-1.0.pth')",
+    help="Path to save model checkpoint OR for loading test model (default: './models/vit-small-224-finetuned-1.0.pth')",
 )
 parser.add_argument(
     "--reorder_path",
     type=str,
     default="/home/jxt/docworkspace/ViT/code/models/vit-small-224-finetuned-1.0-reordered.pth",
-    help="Path to save reordered model checkpoint (default: '../models/vit-small-224-finetuned-1.0-reordered.pth')",
+    help="Path to save reordered model checkpoint (default: './models/vit-small-224-finetuned-1.0-reordered.pth')",
 )
 parser.add_argument(
     "--mha_width",
@@ -216,7 +216,7 @@ if args.training_phase == "width":
           train_loader,
           test_loader,
           mode='width',
-          epochs=300,
+          epochs=3,
           loss_fn=nn.CrossEntropyLoss(),
           model_path=args.save_path,
           device=device,
@@ -275,7 +275,7 @@ if args.training_phase == "test":
         for j, depth in enumerate(tqdm([0.25, 0.5, 0.75, 1], desc="Depth", leave=False)):
             model.apply(lambda m: setattr(m, 'width_mult', width))
             model.apply(lambda m: setattr(m, 'depth', depth))
-            path = os.path.join("../models", f"Width{width}_Depth{depth}_model_width_distillation.pt")
+            path = os.path.join("./models", f"Width{width}_Depth{depth}_model_width_distillation.pt")
             model.load_state_dict(torch.load(path))
             correct = 0
             total = 0
