@@ -65,7 +65,7 @@ def visualize_head_importance(head_importance):
     plt.title("Head Importance per Layer")
     plt.xlabel("Attention Heads")
     plt.ylabel("Transformer Layers")
-    plt.savefig('code/modelsentro2/headimportance.png') #这里可能可以修改
+    plt.savefig('./code/modelshessian2/headimportance.png') #这里可能可以修改
 
 def visualize_neuron_importance(neuron_importance):
     """
@@ -83,7 +83,7 @@ def visualize_neuron_importance(neuron_importance):
     plt.title("Neuron Importance Heatmap")
     plt.xlabel("Neuron Index")
     plt.ylabel("Layer Index")
-    plt.savefig('code/modelsentro2/neuronimportance.png')
+    plt.savefig('./code/modelshessian2/neuronimportance.png')
 
 def visualize_neuron_importance2(neuron_importance, layer_idx=None):
     """
@@ -104,7 +104,7 @@ def visualize_neuron_importance2(neuron_importance, layer_idx=None):
         plt.title(f'Neuron Importance for Layer {layer_idx}')
         plt.xlabel('Neuron Index')
         plt.ylabel('Importance Score')
-        plt.savefig('code/modelsentro2/neuronimportance.png')
+        plt.savefig('./code/modelshessian2/neuronimportance.png')
     else:
         # Plot all layers
         for i, importance in enumerate(importance_values):
@@ -113,7 +113,7 @@ def visualize_neuron_importance2(neuron_importance, layer_idx=None):
             plt.title(f'Neuron Importance for Layer {i}')
             plt.xlabel('Neuron Index')
             plt.ylabel('Importance Score')
-            plt.savefig(f'code/modelsentro2/neuronimportance{i}.png')
+            plt.savefig(f'./code/modelshessian2/neuronimportance{i}.png')
 
 
 """### Importance reordering"""
@@ -162,66 +162,64 @@ def compute_neuron_head_importance(
         #     current_importance += ((w1 * w1.grad).sum(dim=1) + b1 * b1.grad).abs().detach()
         #     current_importance += ((w2 * w2.grad).sum(dim=0)).abs().detach()
 
-        # #-----------二 entropy重要性----------------
-        # outputs , hidden, attn_weights = model(input_ids, return_states=True, return_attn_weight = True)
-        # # attn_weights = attn  # assuming this is a list of attention scores per layer
+        # # #-----------二 entropy重要性----------------
+        # # outputs , hidden, attn_weights = model(input_ids, return_states=True, return_attn_weight = True)
+        # # # attn_weights = attn  # assuming this is a list of attention scores per layer
+        # # for layer in range(n_layers):
+        # #     for head in range(n_heads):
+        # #         # Computing entropy for each head
+        # #         probs = attn_weights[layer][:, head, :, :].mean(dim=0)
+        # #         # max_entropy = torch.log(torch.tensor(probs.shape[0], device=probs.device))  # 最大熵值
+        # #         # entropy = -(probs * torch.log(probs + 1e-10)).sum() / max_entropy #做个归一化
+        # #         entropy = -(probs * torch.log(probs + 1e-10)).sum(dim=[1]).mean(dim=0)
+        # #         # entropy = -(probs * torch.log(probs + 1e-10)).sum()
+        # #         head_importance[layer, head] += entropy.detach()
+        # # head_importance[layer, head] /= n_layers * n_heads
+        # # # for w1, b1, w2, current_importance in zip(intermediate_weight, intermediate_bias, output_weight, neuron_importance):
+        # #     neuron_output = torch.relu(torch.matmul(hidden[-2], w1.T) + b1)  # using ReLU as the activation function
+        # #     neuron_entropy = -(neuron_output * torch.log(neuron_output + 1e-10)).sum(dim=0)
+        # #     current_importance += neuron_entropy.abs().detach()
+        # outputs, hidden, attn_weights = model(input_ids, return_states=True, return_attn_weight=True)
         # for layer in range(n_layers):
         #     for head in range(n_heads):
-        #         # Computing entropy for each head
-        #         probs = attn_weights[layer][:, head, :, :].mean(dim=0)
-        #         # max_entropy = torch.log(torch.tensor(probs.shape[0], device=probs.device))  # 最大熵值
-        #         # entropy = -(probs * torch.log(probs + 1e-10)).sum() / max_entropy #做个归一化
-        #         entropy = -(probs * torch.log(probs + 1e-10)).sum(dim=[1]).mean(dim=0)
-        #         # entropy = -(probs * torch.log(probs + 1e-10)).sum()
+        #         attn_score = attn_weights[layer][:, head, :, :]  # shape: [batch_size, seq_len, seq_len]
+        #         probs = attn_score.mean(dim=0)  # mean over batch
+        #         probs = probs / probs.sum(dim=-1, keepdim=True)  # normalize over seq_len
+        #         max_entropy = torch.log(torch.tensor(probs.shape[0], device=probs.device))  # 最大熵值
+        #         entropy = max_entropy+(probs * torch.log(probs + 1e-10)).sum(dim=-1).mean()  # entropy per head 负号哪来的
         #         head_importance[layer, head] += entropy.detach()
-        # head_importance[layer, head] /= n_layers * n_heads
-        outputs, hidden, attn_weights = model(input_ids, return_states=True, return_attn_weight=True)
-        for layer in range(n_layers):
-            for head in range(n_heads):
-                attn_score = attn_weights[layer][:, head, :, :]  # shape: [batch_size, seq_len, seq_len]
-                probs = attn_score.mean(dim=0)  # mean over batch
-                probs = probs / probs.sum(dim=-1, keepdim=True)  # normalize over seq_len
-                max_entropy = torch.log(torch.tensor(probs.shape[0], device=probs.device))  # 最大熵值
-                entropy = max_entropy+(probs * torch.log(probs + 1e-10)).sum(dim=-1).mean()  # entropy per head 负号哪来的
-                head_importance[layer, head] += entropy.detach()
-        # Normalize head importance
-        head_importance /= (n_layers * n_heads)
-
+        # head_importance /= (n_layers * n_heads)        # Normalize head importance
         # for w1, b1, w2, current_importance in zip(intermediate_weight, intermediate_bias, output_weight, neuron_importance):
-        #     neuron_output = torch.relu(torch.matmul(hidden[-2], w1.T) + b1)  # using ReLU as the activation function
+        #     neuron_output = torch.relu(torch.matmul(hidden[-2], w1.T) + b1)  # ReLU激活
+        #     # 归一化每个神经元的输出
+        #     neuron_output = neuron_output / (neuron_output.sum(dim=-1, keepdim=True) + 1e-10)
+        #     # 计算每个神经元的熵
         #     neuron_entropy = -(neuron_output * torch.log(neuron_output + 1e-10)).sum(dim=0)
+        #     # 更新神经元重要性
         #     current_importance += neuron_entropy.abs().detach()
-        for w1, b1, w2, current_importance in zip(intermediate_weight, intermediate_bias, output_weight, neuron_importance):
-            neuron_output = torch.relu(torch.matmul(hidden[-2], w1.T) + b1)  # ReLU激活
-            # 归一化每个神经元的输出
-            neuron_output = neuron_output / (neuron_output.sum(dim=-1, keepdim=True) + 1e-10)
-            # 计算每个神经元的熵
-            neuron_entropy = -(neuron_output * torch.log(neuron_output + 1e-10)).sum(dim=0)
-            # 更新神经元重要性
-            current_importance += neuron_entropy.abs().detach()
         
         # #-----------三 hessian重要性----------------
-        # outputs = model(input_ids, head_mask=head_mask)
-        # loss = loss_fn(outputs, label_ids)
-        # grads = torch.autograd.grad(loss, head_mask, create_graph=True)[0]
-        # for layer in range(n_layers):
-        #     for head in range(n_heads):
-        #         hessian = torch.autograd.grad(grads[layer, head], head_mask, retain_graph=True)[0]
-        #         head_importance[layer, head] += hessian[layer, head].abs().detach()
-        #         # head_importance[layer, head] = head_importance[layer, head] + hessian.abs().detach()
+        outputs = model(input_ids, head_mask=head_mask)
+        loss = loss_fn(outputs, label_ids)
+        grads = torch.autograd.grad(loss, head_mask, create_graph=True)[0]
+        for layer in range(n_layers):
+            for head in range(n_heads):
+                hessian = torch.autograd.grad(grads[layer, head], head_mask, retain_graph=True)[0]
+                head_importance[layer, head] += hessian[layer, head].abs().detach()
+                # head_importance[layer, head] = head_importance[layer, head] + hessian.abs().detach()
 
-        # for w1, b1, w2, current_importance in zip(intermediate_weight, intermediate_bias, output_weight, neuron_importance):
-        #     grads_w1 = torch.autograd.grad(loss, w1, create_graph=True)[0]
-        #     grads_b1 = torch.autograd.grad(loss, b1, create_graph=True)[0]
-        #     grads_w2 = torch.autograd.grad(loss, w2, create_graph=True)[0]
+        for w1, b1, w2, current_importance in zip(intermediate_weight, intermediate_bias, output_weight, neuron_importance):
+            grads_w1 = torch.autograd.grad(loss, w1, create_graph=True)[0]
+            grads_b1 = torch.autograd.grad(loss, b1, create_graph=True)[0]
+            grads_w2 = torch.autograd.grad(loss, w2, create_graph=True)[0]
 
-        #     hessian_w1 = torch.autograd.grad(grads_w1.sum(), w1, retain_graph=True)[0]
-        #     hessian_b1 = torch.autograd.grad(grads_b1.sum(), b1, retain_graph=True)[0]
-        #     hessian_w2 = torch.autograd.grad(grads_w2.sum(), w2, retain_graph=True)[0]
+            hessian_w1 = torch.autograd.grad(grads_w1.sum(), w1, retain_graph=True)[0]
+            hessian_b1 = torch.autograd.grad(grads_b1.sum(), b1, retain_graph=True)[0]
+            hessian_w2 = torch.autograd.grad(grads_w2.sum(), w2, retain_graph=True)[0]
 
-        #     current_importance += (hessian_w1 * w1).sum(dim=1).abs().detach()
-        #     current_importance += (hessian_b1 * b1).abs().detach()
-        #     current_importance += (hessian_w2 * w2).sum(dim=0).abs().detach()
+            current_importance += (hessian_w1 * w1).sum(dim=1).abs().detach()
+            current_importance += (hessian_b1 * b1).abs().detach()
+            current_importance += (hessian_w2 * w2).sum(dim=0).abs().detach()
 
         break
     return head_importance, neuron_importance #好吧 实际上neuron_importance根本就没做，都是空的，在reorder_head_neuron.py里也把neuron相关的删掉了，太逗了
@@ -333,7 +331,7 @@ def train(
             for i, width in enumerate(tqdm(width_list, desc="Width", leave=False)):
                 print(f"\nWidth: {width}")
                 model.apply(lambda m: setattr(m, 'width_mult', width))
-                path = os.path.join("code/modelsentro2", f"Width{width}_model_width_distillation.pt")
+                path = os.path.join("code/modelshessian2", f"Width{width}_model_width_distillation.pt")
                 train_distillation(
                     model, teacher_model = teacher_model,path=path,
                     train_data = train_data, eval_data = eval_data,
@@ -343,7 +341,7 @@ def train(
                 model.load_state_dict(new_weights, strict=False)
             print("Fine tuning after distillation")
             for i, width in enumerate(tqdm(width_list, desc="Width", leave=False)):
-                path = os.path.join("code/modelsentro2", f"Width{width}_model_width_distillation.pt")
+                path = os.path.join("code/modelshessian2", f"Width{width}_model_width_distillation.pt")
                 print(f"\nWidth: {width}")
                 model.apply(lambda m: setattr(m, 'width_mult', width))
                 train_model(
@@ -374,12 +372,12 @@ def train(
             )
             teacher_model.apply(lambda m: setattr(m, 'width_mult', width))
             teacher_model.to(device)
-            path = os.path.join("code/modelsentro2", f"Width{width}_model_width_distillation.pt")
+            path = os.path.join("code/modelshessian2", f"Width{width}_model_width_distillation.pt")
             teacher_model.load_state_dict(torch.load(path))
             for i, depth in enumerate(tqdm(depth_list, desc="Depth", leave=False)):
                 model.apply(lambda m: setattr(m, 'width_mult', width))
                 model.apply(lambda m: setattr(m, 'depth', depth))
-                path = os.path.join("code/modelsentro2", f"Width{width}_Depth{depth}_model_width_distillation.pt")
+                path = os.path.join("code/modelshessian2", f"Width{width}_Depth{depth}_model_width_distillation.pt")
                 print("Training Distillation")
                 train_distillation(
                     model, teacher_model=teacher_model, path=path,
