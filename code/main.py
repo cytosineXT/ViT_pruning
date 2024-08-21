@@ -1,3 +1,4 @@
+# python ./code/main.py --num_classes 200 --batch_size 256 --device "cuda:0" --training_phase "width" 
 from deit_modified_ghost import VisionTransformer
 from timm.data.constants import IMAGENET_DEFAULT_MEAN, IMAGENET_DEFAULT_STD
 from timm.data import create_transform
@@ -233,7 +234,7 @@ if args.training_phase == "width":
           no_ghost=args.no_ghost,
           ghost_mode=args.ghost_mode,
           heads=args.num_heads,
-          width_list=[0.25, 0.5, 0.75, 1],
+          width_list=[0.25, 0.5, 0.75],
           model_architecture=args.model_architecture,
         #   return_states = True
           )
@@ -262,8 +263,9 @@ if args.training_phase == "depth":
           no_ghost=args.no_ghost,
           ghost_mode=args.ghost_mode,
           heads=args.num_heads,
-          width_list=[0.25, 0.5, 0.75, 1],
-          depth_list=[0.25, 0.5, 0.75, 1]
+          width_list=[0.25, 0.5, 0.75],
+          depth_list=[0.75, 0.5]
+        #   depth_list=[0.25, 0.5, 0.75, 1]
           )
 
 import os

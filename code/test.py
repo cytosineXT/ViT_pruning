@@ -1,24 +1,17 @@
 from deit_modified_ghost import VisionTransformer
 from timm.data.constants import IMAGENET_DEFAULT_MEAN, IMAGENET_DEFAULT_STD
 from timm.data import create_transform
-import timm
 import torch
-from torch import nn, einsum
 from torch.utils.data import DataLoader, SequentialSampler, RandomSampler
 from torchvision.datasets import CIFAR10, CIFAR100, ImageNet, ImageFolder
 from torchvision import transforms
-from torch.optim import Adam, lr_scheduler
 from tqdm import tqdm
-from dust.utils import train_model, print_accuracy, train_distillation, train
-from typing import Union
-from sklearn.metrics import accuracy_score
-from reorder_head_neuron import compute_neuron_head_importance, reorder_neuron_head
-
+from utils import get_logger,increment_path
 import os
 from thop import profile
 import time
-from functools import partial
 import argparse
+from pathlib import Path
 
 parser = argparse.ArgumentParser()
 
@@ -33,15 +26,11 @@ parser.add_argument(
     help="Load model, reorder and save it"
 )
 parser.add_argument(
-    "--path_train",
-    type=str,
-    default="/home/jxt/docworkspace/ViT/tiny-imagenet-200/train",
-    help="Path to train dataset (default: '../data/ImageNet200FullSize/train')",
-)
-parser.add_argument(
     "--path_val",
     type=str,
-    default="C:/Users/MJ/Desktop/DynaViT/tiny-imagenet-200/val/classes",
+    default="./tiny-imagenet-200/val",
+    # default="/home/jxt/docworkspace/ViT/tiny-imagenet-200/val",
+    #default="F:/Download/ImageNet/val",
     help="Path to validation dataset (default: '../data/ImageNet200FullSize/val')",
 )
 parser.add_argument(
@@ -49,29 +38,6 @@ parser.add_argument(
     type=str,
     default="vit_small_patch16_224",
     help="Architecture of model (default: 'vit_small_patch16_224')",
-)
-parser.add_argument(
-    "--pretrained",
-    action="store_true",
-    help="To load pretrained weights of architecture instead of loading from model_path",
-)
-parser.add_argument(
-    "--model_path",
-    type=str,
-    default="../models/vit-small-224.pth",
-    help="Path to model initial checkpoint OR to store state dictionary if pretrained is true (default: '../models/vit-small-224.pth')",
-)
-parser.add_argument(
-    "--save_path",
-    type=str,
-    default="../models/vit-small-224-finetuned-1.0.pth",
-    help="Path to save model checkpoint OR for loading test model (default: '../models/vit-small-224-finetuned-1.0.pth')",
-)
-parser.add_argument(
-    "--reorder_path",
-    type=str,
-    default="../models/vit-small-224-finetuned-1.0-reordered.pth",
-    help="Path to save reordered model checkpoint (default: '../models/vit-small-224-finetuned-1.0-reordered.pth')",
 )
 parser.add_argument(
     "--mha_width",
@@ -91,14 +57,14 @@ parser.add_argument(
 parser.add_argument(
     "--device",
     type=str,
-    default="cuda:0",
+    default="cuda:1",
     help="Device to train (or test) on (default: 'cuda:0')",
 )
 parser.add_argument(
-    "--batch_size", type=int, default=64, help="Batch size (default: 64)"
+    "--batch_size", type=int, default=128, help="Batch size (default: 64)"
 )
 parser.add_argument(
-    "--num_classes", type=int, default=200, help="Number of classes (default: 1000)"
+    "--num_classes", type=int, default=1000, help="Number of classes (default: 1000)"
 )
 parser.add_argument(
     "--img_size",
@@ -110,11 +76,11 @@ parser.add_argument(
     "--patch_size", type=int, default=16, help="Patch size (default: 16)"
 )
 parser.add_argument(
-    "--embed_dim", type=int, default=768, help="Embedding dimension (default: 384)"
+    "--embed_dim", type=int, default=384, help="Embedding dimension (default: 384)"
 )
 parser.add_argument("--depth", type=int, default=12, help="Depth (default: 12)")
 parser.add_argument(
-    "--num_heads", type=int, default=12, help="Number of heads (default: 6)"
+    "--num_heads", type=int, default=6, help="Number of heads (default: 6)"
 )
 parser.add_argument("--mlp_ratio", type=int, default=4, help="MLP ratio (default: 4)")
 parser.add_argument(
@@ -129,24 +95,28 @@ parser.add_argument(
     help="Mode for applying ghost module (default: 'simple')",
 )
 parser.add_argument("--init_scratch", action="store_false", help="To start from scratch model")
-parser.add_argument("--training_phase", default="finetuning", type=str,
+# parser.add_argument("--training_phase", default="width", type=str,
+parser.add_argument("--training_phase", default="test", type=str,
                         help="can be finetuning, width, depth")
 args = parser.parse_args()
 
+FILE = Path(__file__).resolve()
+ROOT = FILE.parents[0]  # YOLOv5 root directory
+ROOT = Path(os.path.relpath(ROOT, Path.cwd()))  # relative
+save_dir = str(increment_path(Path(ROOT / "output" / "test" /'0821test'), exist_ok=False))
+logdir = os.path.join(save_dir,'log.txt')
+logger = get_logger(logdir)
+
 if torch.cuda.is_available():
     device = torch.device(args.device)
-    print(f"{torch.cuda.device_count()} GPU(s) available.")
-    print("Device name:", torch.cuda.get_device_name(0))
+    logger.info(f"{torch.cuda.device_count()} GPU(s) available.")
+    logger.info("Device name:", torch.cuda.get_device_name(0))
 else:
-    print("No GPU available, using the CPU instead.")
+    logger.info("No GPU available, using the CPU instead.")
     device = torch.device("cpu")
-
+     
 path_train = args.path_train
 path_val = args.path_val
-
-if args.pretrained == True:
-    model_base = timm.create_model(args.model_architecture, pretrained=True)
-    torch.save(model_base.state_dict(), args.model_path)
 
 train_transforms = create_transform(
     input_size=args.img_size,
@@ -167,11 +137,6 @@ val_transforms = transforms.Compose(
     ]
 )
 
-train_dataset = ImageFolder(path_train, transform=train_transforms)
-train_sampler = RandomSampler(train_dataset)
-train_loader = DataLoader(
-    train_dataset, sampler=train_sampler, batch_size=args.batch_size
-)
 val_dataset = ImageFolder(path_val, transform=val_transforms)
 val_sampler = SequentialSampler(val_dataset)
 test_loader = DataLoader(val_dataset, sampler=val_sampler, batch_size=args.batch_size)
@@ -192,34 +157,44 @@ model = VisionTransformer(
     no_ghost=args.no_ghost,
     ghost_mode=args.ghost_mode,
 )
-width=0.25
-model.apply(lambda m: setattr(m, 'width_mult', width))
-path = os.path.join("C:/Users/MJ/Desktop/DynaViT/models/vit-b/Width0.25_model_width_distillation.pt")
-model.load_state_dict(torch.load(path))
-model.to(device)
-model.eval()
-correct = 0
-total = 0
-with torch.no_grad():
-    for i, data in enumerate(tqdm(test_loader, desc="Evaluating", leave=False)):
-        inputs, labels = tuple(t.to(device) for t in data)
-        outputs = model(inputs)
-        _, predicted = torch.max(outputs.data, 1)
-        total += labels.size(0)
-        correct += (predicted == labels).sum().item()
+# width=0.25
+# model.apply(lambda m: setattr(m, 'width_mult', width))
+# path = os.path.join("C:/Users/MJ/Desktop/DynaViT/models/vit-b/Width0.25_model_width_distillation.pt")
+# model.load_state_dict(torch.load(path))
+for i, width in enumerate(tqdm([0.25, 0.5, 0.75, 1], desc="Width", leave=False)):
+    # for j, depth in enumerate(tqdm([0.25,0.5], desc="Depth", leave=False)):
+    for j, depth in enumerate(tqdm([0.25, 0.5, 0.75, 1], desc="Depth", leave=False)):
+        model.apply(lambda m: setattr(m, 'width_mult', width))
+        model.apply(lambda m: setattr(m, 'depth', depth))
+        path = os.path.join("./code/models", f"Width{width}_Depth{depth}_model_width_distillation.pt")
+        try:
+            model.load_state_dict(torch.load(path,weights_only=True), strict=False)
+        except:
+            continue
+        model.to(device)
+        model.eval()
+        correct = 0
+        total = 0
+        with torch.no_grad():
+            for i, data in enumerate(tqdm(test_loader, desc="Evaluating", leave=False)):
+                inputs, labels = tuple(t.to(device) for t in data)
+                outputs = model(inputs)
+                _, predicted = torch.max(outputs.data, 1)
+                total += labels.size(0)
+                correct += (predicted == labels).sum().item()
 
-accuracy = 100 * correct / total
-print(f'Accuracy of the  network on the test images: %0.2f %%' % accuracy)
-num_params = sum(p.numel() for p in model.parameters())
-print('Number of parameters: %d' % num_params)
-inputs, _ = next(iter(test_loader))
-inputs = inputs.to(device)
-with torch.no_grad():
-    start_time = time.time()
-    outputs = model(inputs)
-    end_time = time.time()
-inference_time = end_time - start_time
-print('Inference time: %.2fms' % (inference_time * 1000))
-flops, params = profile(model, inputs=(inputs,))
-print('Number of parameters: %d' % params)
-print('FLOPS: %.2fG' % (flops / 1e9))
+        accuracy = 100 * correct / total
+        logger.info(f'Accuracy of the  network on the test images: %0.2f %%' % accuracy)
+        num_params = sum(p.numel() for p in model.parameters())
+        logger.info('Number of parameters: %d' % num_params)
+        inputs, _ = next(iter(test_loader))
+        inputs = inputs.to(device)
+        with torch.no_grad():
+            start_time = time.time()
+            outputs = model(inputs)
+            end_time = time.time()
+        inference_time = end_time - start_time
+        logger.info('Inference time: %.2fms' % (inference_time * 1000))
+        flops, params = profile(model, inputs=(inputs,))
+        logger.info('Number of parameters: %d' % params)
+        logger.info('FLOPS: %.2fG' % (flops / 1e9))
