@@ -27,6 +27,39 @@ from deit_modified_ghost import VisionTransformer
 from functools import partial
 
 from tqdm import tqdm
+import logging
+from pathlib import Path
+
+def increment_path(path, exist_ok=False, sep="", mkdir=True):
+    path = Path(path)  # os-agnostic
+    if path.exists() and not exist_ok:
+        path, suffix = (path.with_suffix(""), path.suffix) if path.is_file() else (path, "")
+        for n in range(2, 9999):
+            p = f"{path}{sep}{n}{suffix}"  # increment path
+            if not os.path.exists(p):  #
+                break
+        path = Path(p)
+    if mkdir:
+        path.mkdir(parents=True, exist_ok=True)  # make directory
+    return path
+
+def get_logger(filename, verbosity=1, name=None):
+    level_dict = {0: logging.DEBUG, 1: logging.INFO, 2: logging.WARNING}
+    formatter = logging.Formatter(
+        "[%(asctime)s][%(filename)s][line:%(lineno)d][%(levelname)s] %(message)s"
+    )
+    logger = logging.getLogger(name)
+    logger.setLevel(level_dict[verbosity])
+ 
+    fh = logging.FileHandler(filename, "w")
+    fh.setFormatter(formatter)
+    logger.addHandler(fh)
+ 
+    sh = logging.StreamHandler()
+    sh.setFormatter(formatter)
+    logger.addHandler(sh)
+ 
+    return logger
 
 #try:
     #from google.colab import drive
