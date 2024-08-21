@@ -100,6 +100,13 @@ parser.add_argument("--training_phase", default="test", type=str,
                         help="can be finetuning, width, depth")
 args = parser.parse_args()
 
+FILE = Path(__file__).resolve()
+ROOT = FILE.parents[0]  # YOLOv5 root directory
+ROOT = Path(os.path.relpath(ROOT, Path.cwd()))  # relative
+save_dir = str(increment_path(Path(ROOT / "output" / "test" /'0821test'), exist_ok=False))
+logdir = os.path.join(save_dir,'log.txt')
+logger = get_logger(logdir)
+
 if torch.cuda.is_available():
     device = torch.device(args.device)
     logger.info(f"{torch.cuda.device_count()} GPU(s) available.")
@@ -108,13 +115,6 @@ else:
     logger.info("No GPU available, using the CPU instead.")
     device = torch.device("cpu")
      
-FILE = Path(__file__).resolve()
-ROOT = FILE.parents[0]  # YOLOv5 root directory
-ROOT = Path(os.path.relpath(ROOT, Path.cwd()))  # relative
-save_dir = str(increment_path(Path(ROOT / "output" / "test" /'0821test'), exist_ok=False))
-logdir = os.path.join(save_dir,'log.txt')
-logger = get_logger(logdir)
-
 path_train = args.path_train
 path_val = args.path_val
 
