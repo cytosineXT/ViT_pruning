@@ -1,11 +1,11 @@
 """### Importing Libraries"""
-import timm
+# import timm
 import torch
 from torch import nn, einsum
-from torch.utils.data import DataLoader, SequentialSampler, RandomSampler
-from torchvision.datasets import CIFAR10, CIFAR100, ImageNet
+# from torch.utils.data import DataLoader, SequentialSampler, RandomSampler
+# from torchvision.datasets import CIFAR10, CIFAR100, ImageNet
 from torch.optim import Adam, lr_scheduler
-from torchvision import transforms
+# from torchvision import transforms
 
 #import matplotlib.pyplot as plt
 import numpy as np
@@ -13,18 +13,18 @@ import numpy as np
 
 from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score
 
-from einops import rearrange, repeat
-from einops.layers.torch import Rearrange
-import pickle
+# from einops import rearrange, repeat
+# from einops.layers.torch import Rearrange
+# import pickle
 import os
 from thop import profile
-import time
-import re
+# import time
+# import re
 
 from timm.models.layers import DropPath, PatchEmbed, trunc_normal_, lecun_normal_
 from deit_modified import  DynaLinear
 from deit_modified_ghost import VisionTransformer
-from functools import partial
+# from functools import partial
 
 from tqdm import tqdm
 import logging

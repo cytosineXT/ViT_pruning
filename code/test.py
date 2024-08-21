@@ -115,7 +115,7 @@ else:
     logger.info("No GPU available, using the CPU instead.")
     device = torch.device("cpu")
      
-path_train = args.path_train
+# path_train = args.path_train
 path_val = args.path_val
 
 train_transforms = create_transform(
@@ -164,6 +164,7 @@ model = VisionTransformer(
 for i, width in enumerate(tqdm([0.25, 0.5, 0.75, 1], desc="Width", leave=False)):
     # for j, depth in enumerate(tqdm([0.25,0.5], desc="Depth", leave=False)):
     for j, depth in enumerate(tqdm([0.25, 0.5, 0.75, 1], desc="Depth", leave=False)):
+
         model.apply(lambda m: setattr(m, 'width_mult', width))
         model.apply(lambda m: setattr(m, 'depth', depth))
         path = os.path.join("./code/models", f"Width{width}_Depth{depth}_model_width_distillation.pt")
@@ -171,6 +172,7 @@ for i, width in enumerate(tqdm([0.25, 0.5, 0.75, 1], desc="Width", leave=False))
             model.load_state_dict(torch.load(path,weights_only=True), strict=False)
         except:
             continue
+        logger.info(f'------------use {path} to test------------')
         model.to(device)
         model.eval()
         correct = 0
@@ -198,3 +200,4 @@ for i, width in enumerate(tqdm([0.25, 0.5, 0.75, 1], desc="Width", leave=False))
         flops, params = profile(model, inputs=(inputs,))
         logger.info('Number of parameters: %d' % params)
         logger.info('FLOPS: %.2fG' % (flops / 1e9))
+        logger.info('\n')
