@@ -23,7 +23,7 @@ import re
 
 from timm.models.layers import DropPath, PatchEmbed, trunc_normal_, lecun_normal_
 from deit_modified import  DynaLinear
-from deit_modified_ghost import VisionTransformer
+from code.deit_modified_ghost_init import VisionTransformer
 from functools import partial
 
 from tqdm import tqdm

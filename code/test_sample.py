@@ -1,4 +1,4 @@
-from deit_modified_ghost import VisionTransformer
+from code.deit_modified_ghost_init import VisionTransformer
 import numpy as np
 import torch
 import warnings

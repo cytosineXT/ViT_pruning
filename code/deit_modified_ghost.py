@@ -477,7 +477,7 @@ class Attention(nn.Module):
             self.projs[i].weight.copy_(proj_tensors[i].contiguous())
             self.projs[i].weight.requires_grad = True
 
-    def forward(self, x, head_mask=None):
+    def forward(self, x, head_mask=None, return_attn_weight=False):
 
         B, N, C = x.shape
         num_heads = round(self.num_heads * self.qkv.width_mult)
@@ -518,6 +518,8 @@ class Attention(nn.Module):
             x = torch.sum(x, dim=0)
         x = x + self.proj_bias
         x = self.proj_drop(x)
+        if return_attn_weight:
+            return x, attn
         return x
 
 
@@ -563,10 +565,16 @@ class Block(nn.Module):
             width_mult=mlp_width,
         )
 
-    def forward(self, x, head_mask=None):
-        x = x + self.drop_path(self.attn(self.norm1(x), head_mask=head_mask))
-        x = x + self.drop_path(self.mlp(self.norm2(x)))
-        return x
+    def forward(self, x, head_mask=None, return_attn_weight=False):
+        if return_attn_weight:
+            x, attn_weight = self.attn(self.norm1(x), head_mask=head_mask, return_attn_weight=True)
+            x = x + self.drop_path(x)
+            x = x + self.drop_path(self.mlp(self.norm2(x)))
+            return x, attn_weight
+        else:
+            x = x + self.drop_path(self.attn(self.norm1(x), head_mask=head_mask))
+            x = x + self.drop_path(self.mlp(self.norm2(x)))
+            return x
 
 
 class VisionTransformer(nn.Module):
@@ -749,7 +757,7 @@ class VisionTransformer(nn.Module):
                 else nn.Identity()
             )
 
-    def forward_features(self, x, head_mask=None):
+    def forward_features(self, x, head_mask=None, return_attn_weight=False):
         x = self.patch_embed(x)
         cls_token = self.cls_token.expand(
             x.shape[0], -1, -1
@@ -761,15 +769,27 @@ class VisionTransformer(nn.Module):
                 (cls_token, self.dist_token.expand(x.shape[0], -1, -1), x), dim=1
             )
         x = self.pos_drop(x + self.pos_embed)
-        for i, block in enumerate(self.blocks):
-            x = block(x, head_mask=head_mask[i])
-        x = self.norm(x)
-        if self.dist_token is None:
-            return self.pre_logits(x[:, 0])
-        else:
-            return x[:, 0], x[:, 1]
 
-    def forward(self, x, head_mask=None,return_states=False):
+        attn_weights = []  # 用于存储注意力权重
+        if return_attn_weight:
+            for i, block in enumerate(self.blocks):
+                x, attn = block(x, head_mask=head_mask[i], return_attn_weight=return_attn_weight)  # 假设 block 返回注意力权重
+                attn_weights.append(attn)
+        else:
+            for i, block in enumerate(self.blocks):
+                x = block(x, head_mask=head_mask[i])
+        
+        x = self.norm(x)
+        # if self.dist_token is None:
+        #     return self.pre_logits(x[:, 0])
+        # else:
+        #     return x[:, 0], x[:, 1]
+        if self.dist_token is None:
+            return self.pre_logits(x[:, 0]), attn_weights
+        else:
+            return (x[:, 0], x[:, 1]), attn_weights
+
+    def forward(self, x, head_mask=None,return_states=False,return_attn_weight=False):
         if head_mask is not None:
             if head_mask.dim() == 1:
                 head_mask = head_mask.unsqueeze(0).unsqueeze(0).unsqueeze(-1).unsqueeze(-1)
@@ -780,7 +800,8 @@ class VisionTransformer(nn.Module):
         else:
             head_mask = [None] * self.num_layers
 
-        hidden = self.forward_features(x, head_mask=head_mask)
+        # hidden = self.forward_features(x, head_mask=head_mask)
+        hidden, attn = self.forward_features(x, head_mask=head_mask,return_attn_weight=return_attn_weight)
         if self.head_dist is not None:
             x, x_dist = self.head(hidden[0]), self.head_dist(hidden[1])  # x must be a tuple
             if self.training and not torch.jit.is_scripting():
@@ -790,10 +811,17 @@ class VisionTransformer(nn.Module):
                 return (x + x_dist) / 2
         else:
             x = self.head(hidden)
-        if not return_states:
-            return x
+
+        if return_attn_weight:
+            if not return_states:
+                return x, attn
+            else:
+                return x, hidden, attn
         else:
-            return x, hidden
+            if not return_states:
+                return x
+            else:
+                return x, hidden
 
 
 def _init_vit_weights(

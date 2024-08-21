@@ -234,7 +234,8 @@ if args.training_phase == "width":
           ghost_mode=args.ghost_mode,
           heads=args.num_heads,
           width_list=[0.25, 0.5, 0.75, 1],
-          model_architecture=args.model_architecture
+          model_architecture=args.model_architecture,
+        #   return_states = True
           )
 
 # stage 3, block深度自适应蒸馏
