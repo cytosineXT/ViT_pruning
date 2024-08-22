@@ -115,7 +115,7 @@ else:
     logger.info("No GPU available, using the CPU instead.")
     device = torch.device("cpu")
      
-path_train = args.path_train
+# path_train = args.path_train
 path_val = args.path_val
 
 train_transforms = create_transform(
