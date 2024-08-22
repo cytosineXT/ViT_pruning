@@ -171,6 +171,7 @@ model = VisionTransformer(
 #             model.load_state_dict(torch.load(path,weights_only=True), strict=False)
 #         except:
 #             continue
+        # logger.info(f'------------use {path} to test------------')
 #         model.to(device)
 #         model.eval()
 #         correct = 0
