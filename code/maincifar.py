@@ -1,4 +1,4 @@
-# python ./code/maincifar.py --num_classes 100 --batch_size 4096 --device "cuda:0" --img_size 32 --training_phase "finetuning" --save_path "./code/models/vit-small-224-cifar100-finetuned-3.0.pth" --epochs 100 --pretrained True --model_path "code/models/vit-small-224-cifar100-finetuned-2.0.pth"
+# python ./code/maincifar.py --num_classes 100 --batch_size 4096 --device "cuda:0" --img_size 32 --training_phase "finetuning" --save_path "./code/models/vit-small-224-cifar100-finetuned-100e.pth" --epochs 50 --pretrained True --model_path "code/models/vit-small-224-cifar100-finetuned-2.0.pth"
 from deit_modified_ghost import VisionTransformer
 from timm.data.constants import IMAGENET_DEFAULT_MEAN, IMAGENET_DEFAULT_STD
 from timm.data import create_transform
@@ -217,7 +217,7 @@ if args.training_phase == "finetuning":
           epochs=args.epochs,
           loss_fn=nn.CrossEntropyLoss(),
           model_path=args.save_path,
-          device=device,logger=logger)
+          device=device,logger=logger,test_loader=test_loader)
 
 # stage 2, reorder teacher model, 然后做mlp宽度和atten heads自适应蒸馏
 if args.training_phase == "width":

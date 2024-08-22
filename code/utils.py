@@ -18,7 +18,7 @@ from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_sc
 # import pickle
 import os
 from thop import profile
-# import time
+import time
 # import re
 
 from timm.models.layers import DropPath, PatchEmbed, trunc_normal_, lecun_normal_
