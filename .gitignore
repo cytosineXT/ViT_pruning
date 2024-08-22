@@ -2,3 +2,5 @@ __pycache__/
 /dust
 *.pt
 *.png
+output/
+cifar*/
