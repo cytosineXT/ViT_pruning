@@ -246,7 +246,8 @@ if args.training_phase == "width":
           width_list=[0.25, 0.5, 0.75,1],
           model_architecture=args.model_architecture,
           logger=logger,
-          savedir=save_dir
+          savedir=save_dir,
+          test_loader=test_loader
         #   return_states = True
           )
 
@@ -277,7 +278,8 @@ if args.training_phase == "depth":
           width_list=[0.25, 0.5, 0.75,1],
           depth_list=[0.75, 0.5],
           logger=logger,
-          savedir=save_dir
+          savedir=save_dir,
+          test_loader=test_loader
         #   depth_list=[0.25, 0.5, 0.75, 1]
           )
 
