@@ -1,4 +1,4 @@
-# python ./code/main.py --num_classes 200 --batch_size 256 --device "cuda:0" --training_phase "width" 
+# python ./code/main.py --num_classes 200 --batch_size 256 --device "cuda:1" --training_phase "width" --save_path  "./code/models/vit-small-224-finetuned-50e.pth" --epoch 100
 from deit_modified_ghost import VisionTransformer
 from timm.data.constants import IMAGENET_DEFAULT_MEAN, IMAGENET_DEFAULT_STD
 from timm.data import create_transform
@@ -10,14 +10,16 @@ from torchvision.datasets import CIFAR10, CIFAR100, ImageNet, ImageFolder
 from torchvision import transforms
 # from torch.optim import Adam, lr_scheduler
 from tqdm import tqdm
-from utils import train_model, print_accuracy, train_distillation, train
-# from typing import Union
-# from sklearn.metrics import accuracy_score
-# from reorder_head_neuron import compute_neuron_head_importance, reorder_neuron_head
-# from functools import partial
-
+from utils import train, get_logger, increment_path
+from pathlib import Path
 import argparse
+import os
+from thop import profile
+import time
 
+FILE = Path(__file__).resolve()
+ROOT = FILE.parents[0]  # YOLOv5 root directory
+ROOT = Path(os.path.relpath(ROOT, Path.cwd()))  # relative
 parser = argparse.ArgumentParser()
 
 parser.add_argument(
@@ -135,6 +137,12 @@ parser.add_argument(
 )
 args = parser.parse_args()
 
+path_cifar = './'
+save_dir = str(increment_path(Path(ROOT / "output" / "train" /'0823hessian_width'), exist_ok=False))
+logdir = os.path.join(save_dir,'log.txt')
+logger = get_logger(logdir)
+logger.info(f'training_phase: {args.training_phase}, epochs: {args.epochs}, device: {args.device}, batch_size: {args.batch_size}, num_classes: {args.num_classes}, save_path: {args.save_path}, img_size: {args.img_size}, pretrain:{args.pretrained}, model_path:{args.model_path}')
+
 if torch.cuda.is_available():
     device = torch.device(args.device)
     print(f"{torch.cuda.device_count()} GPU(s) available.")
@@ -208,7 +216,7 @@ if args.training_phase == "finetuning":
           epochs=20,
           loss_fn=nn.CrossEntropyLoss(),
           model_path=args.save_path,
-          device=device,)
+          device=device,logger=logger,test_loader=test_loader)
 
 # stage 2, reorder teacher model, 然后做mlp宽度和atten heads自适应蒸馏
 if args.training_phase == "width":
@@ -234,8 +242,11 @@ if args.training_phase == "width":
           no_ghost=args.no_ghost,
           ghost_mode=args.ghost_mode,
           heads=args.num_heads,
-          width_list=[0.25, 0.5, 0.75],
+          width_list=[0.75,1],
           model_architecture=args.model_architecture,
+          logger=logger,
+          savedir=save_dir,
+          test_loader=test_loader #草 发现有个test_loader给eval_data了 逆天 又写了个。。。
         #   return_states = True
           )
 
@@ -264,13 +275,12 @@ if args.training_phase == "depth":
           ghost_mode=args.ghost_mode,
           heads=args.num_heads,
           width_list=[0.25, 0.5, 0.75],
-          depth_list=[0.75, 0.5]
+          depth_list=[0.75, 0.5],
+          logger=logger,
+          savedir=save_dir,
+          test_loader=test_loader
         #   depth_list=[0.25, 0.5, 0.75, 1]
           )
-
-import os
-from thop import profile
-import time
 
 if args.training_phase == "test":
     for i, width in enumerate(tqdm([0.25, 0.5, 0.75, 1], desc="Width", leave=False)):
