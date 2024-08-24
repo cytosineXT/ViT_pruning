@@ -1,4 +1,4 @@
-# python ./code/main.py --num_classes 200 --batch_size 256 --device "cuda:1" --training_phase "width" --save_path  "./code/models/vit-small-224-finetuned-50e.pth" --epoch 100
+# python ./code/main.py --num_classes 200 --batch_size 256 --device "cuda:0" --training_phase "finetuning" --save_path  "./code/models/vit-small-224-finetuned-100e.pth" --epoch 100 --pretrained True --model_path "code/models/vit-small-224-finetuned-50e.pth"
 from deit_modified_ghost import VisionTransformer
 from timm.data.constants import IMAGENET_DEFAULT_MEAN, IMAGENET_DEFAULT_STD
 from timm.data import create_transform
@@ -138,7 +138,7 @@ parser.add_argument(
 args = parser.parse_args()
 
 path_cifar = './'
-save_dir = str(increment_path(Path(ROOT / "output" / "train" /'0823hessian_width'), exist_ok=False))
+save_dir = str(increment_path(Path(ROOT / "output" / "train" /'0824fine'), exist_ok=False))
 logdir = os.path.join(save_dir,'log.txt')
 logger = get_logger(logdir)
 logger.info(f'training_phase: {args.training_phase}, epochs: {args.epochs}, device: {args.device}, batch_size: {args.batch_size}, num_classes: {args.num_classes}, save_path: {args.save_path}, img_size: {args.img_size}, pretrain:{args.pretrained}, model_path:{args.model_path}')
@@ -213,7 +213,7 @@ if args.training_phase == "finetuning":
           train_loader,
           test_loader,
           mode='finetuning',
-          epochs=20,
+          epochs=args.epochs,
           loss_fn=nn.CrossEntropyLoss(),
           model_path=args.save_path,
           device=device,logger=logger,test_loader=test_loader)
