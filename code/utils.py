@@ -383,7 +383,7 @@ def train(
                     epochs=epochs, loss_fn =loss_fn,
                     optimizer=optimizer, scheduler=scheduler, device=device,logger=logger
                 )
-                model.load_state_dict(torch.load(path))
+                model.load_state_dict(torch.load(path), strict=False)
 
     if mode == "depth":
         width_list = sorted(width_list, reverse=True)
@@ -405,12 +405,13 @@ def train(
             )
             teacher_model.apply(lambda m: setattr(m, 'width_mult', width))
             teacher_model.to(device)
-            path = os.path.join('/home/jxt/docworkspace/ViT_pruning/code/output/train/0821cifar10_5', f"Width{width}_model_width_distillation.pt")
-            teacher_model.load_state_dict(torch.load(path))
+            path = os.path.join(model_path, f"Width{width}_model_width_distillation.pt")
+            teacher_model.load_state_dict(torch.load(path), strict=False)
             for i, depth in enumerate(tqdm(depth_list, desc="Depth", leave=False)):
                 model.apply(lambda m: setattr(m, 'width_mult', width))
                 model.apply(lambda m: setattr(m, 'depth', depth))
                 path = os.path.join(savedir, f"Width{width}_Depth{depth}_model_width_distillation.pt")
+                logger.info(path)
                 logger.info("Training Distillation")
                 train_distillation(
                     model, teacher_model=teacher_model, path=path,
@@ -418,7 +419,7 @@ def train(
                     epochs=epochs, device=device,
                     optimizer=optimizer, scheduler=scheduler, loss_fn=loss_fn,logger=logger
                 )
-                model.load_state_dict(torch.load(path))#为啥会报错找不到文件夹。。
+                model.load_state_dict(torch.load(path), strict=False)#为啥会报错找不到文件夹。。
 
 
 def train_model(model, train_data, eval_data, path, epochs, loss_fn, optimizer, scheduler, device='cuda', logger=None,test_loader=None,**args):
@@ -751,6 +752,34 @@ def train_distillation(model, teacher_model, train_data, eval_data, path,
             best_eval_loss = eval_loss
 
         logger.info(f"Validation loss = {eval_loss}")
+
+        model.to(device)
+        model.eval()
+        correct = 0
+        total = 0
+        with torch.no_grad():
+            for i, data in enumerate(tqdm(eval_data, desc="Evaluating", leave=False)):
+                inputs, labels = tuple(t.to(device) for t in data)
+                outputs = model(inputs)
+                _, predicted = torch.max(outputs.data, 1)
+                total += labels.size(0)
+                correct += (predicted == labels).sum().item()
+
+        accuracy = 100 * correct / total
+        logger.info(f'Accuracy of the  network on the test images: %0.2f %%' % accuracy)
+        num_params = sum(p.numel() for p in model.parameters())
+        logger.info('Number of parameters: %d' % num_params)
+        inputs, _ = next(iter(eval_data))
+        inputs = inputs.to(device)
+        with torch.no_grad():
+            start_time = time.time()
+            outputs = model(inputs)
+            end_time = time.time()
+        inference_time = end_time - start_time
+        logger.info('Inference time: %.2fms' % (inference_time * 1000))
+        flops, params = profile(model, inputs=(inputs,))
+        logger.info('Number of parameters: %d' % params)
+        logger.info('FLOPS: %.2fG' % (flops / 1e9))
 
         
 
