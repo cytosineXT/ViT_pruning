@@ -1,4 +1,4 @@
-# python ./code/maincifar10.py --num_classes 10 --batch_size 4096 --device "cuda:1" --img_size 32 --training_phase "finetuning" --save_path "./code/models/vit-small-224-cifar10-finetuned-3.0.pth" --epochs 100 --pretrained True --model_path "code/models/vit-small-224-cifar10-finetuned-2.0.pth"
+# python ./code/maincifar10.py --num_classes 10 --batch_size 4096 --device "cuda:1" --img_size 32 --training_phase "depth" --save_path '/home/jxt/docworkspace/ViT_pruning/code/output/train/0821cifar10_6' --epochs 1
 from deit_modified_ghost import VisionTransformer
 from timm.data.constants import IMAGENET_DEFAULT_MEAN, IMAGENET_DEFAULT_STD
 from timm.data import create_transform
@@ -137,7 +137,7 @@ parser.add_argument(
 args = parser.parse_args()
 
 path_cifar = './'
-save_dir = str(increment_path(Path(ROOT / "output" / "train" /'0822cifar10_fine'), exist_ok=False))
+save_dir = str(increment_path(Path(ROOT / "output" / "train" /'0823cifar10_depth'), exist_ok=False))
 logdir = os.path.join(save_dir,'log.txt')
 logger = get_logger(logdir)
 logger.info(f'training_phase: {args.training_phase}, epochs: {args.epochs}, device: {args.device}, batch_size: {args.batch_size}, num_classes: {args.num_classes}, save_path: {args.save_path}, img_size: {args.img_size}, pretrain:{args.pretrained}, model_path:{args.model_path}')
@@ -226,7 +226,7 @@ if args.training_phase == "width":
           train_loader,
           test_loader,
           mode='width',
-          epochs=100,
+          epochs=args.epochs,
           loss_fn=nn.CrossEntropyLoss(),
           model_path=args.save_path,
           device=device,
@@ -256,7 +256,7 @@ if args.training_phase == "depth":
           train_loader,
           test_loader,
           mode='depth',
-          epochs=1,
+          epochs=args.epochs,
           loss_fn=nn.CrossEntropyLoss(),
           model_path=args.save_path,
           device=device,
