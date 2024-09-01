@@ -3,6 +3,9 @@
 # python ./code/main.py --num_classes 200 --batch_size 256 --device "cuda:0" --training_phase "finetuning" --save_path  "vit-small-224-finetuned-.pth" --epoch 50  --model_path "vit-small-224-.pth" --model_architecture "vit_small_patch16_224.augreg_in21k_ft_in1k" --img_size 224
 # python ./code/main.py --num_classes 200 --batch_size 128 --device "cuda:1" --training_phase "finetuning" --save_path  "vit-base-224-finetuned-.pth" --epoch 50  --model_path "vit-base-224-.pth" --model_architecture "vit_base_patch16_224.augreg_in21k_ft_in1k" --img_size 224
 
+# python ./code/main.py --num_classes 200 --batch_size 128 --device "cuda:0" --training_phase "width" --save_path  "code/output/train/0901smallfine/vit-small-224-finetuned-8225.pth" --epoch 10  --model_architecture "vit_small_patch16_224.augreg_in21k_ft_in1k" --img_size 224
+# python ./code/main.py --num_classes 200 --batch_size 128 --device "cuda:1" --training_phase "width" --save_path  "code/output/train/0901smallfine/vit-small-224-finetuned-8225.pth" --epoch 100  --model_architecture "vit_base_patch16_224.augreg_in21k_ft_in1k" --img_size 224
+
 
 
 # export HF_ENDPOINT="https://hf-mirror.com"
@@ -149,7 +152,7 @@ args = parser.parse_args()
 
 path_cifar = './'
 date = datetime.today().strftime("%m%d")
-save_dir = str(increment_path(Path(ROOT / "output" / "train" / f'{date}basefine'), exist_ok=False))
+save_dir = str(increment_path(Path(ROOT / "output" / "train" / f'{date}smallwidth'), exist_ok=False))
 logdir = os.path.join(save_dir,'log.txt')
 save_path = os.path.join(save_dir,args.save_path)
 model_path = os.path.join(save_dir,args.model_path)
@@ -239,9 +242,9 @@ if args.training_phase == "width":
           train_loader,
           test_loader,
           mode='width',
-          epochs=100,
+          epochs=args.epochs,
           loss_fn=nn.CrossEntropyLoss(),
-          model_path=save_path,
+          model_path=args.save_path,
           device=device,
           img_size=args.img_size,
           patch_size=args.patch_size,
@@ -261,7 +264,8 @@ if args.training_phase == "width":
           model_architecture=args.model_architecture,
           logger=logger,
           savedir=save_dir,
-          test_loader=test_loader #草 发现有个test_loader给eval_data了 逆天 又写了个。。。
+          test_loader=test_loader, #草 发现有个test_loader给eval_data了 逆天 又写了个。。。
+        #   width_save_path=save_dir
         #   return_states = True
           )
 
