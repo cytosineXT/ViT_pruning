@@ -1,4 +1,11 @@
-# python ./code/main.py --num_classes 200 --batch_size 256 --device "cuda:0" --training_phase "finetuning" --save_path  "./code/models/vit-small-224-finetuned-100e.pth" --epoch 100 --pretrained True --model_path "code/models/vit-small-224-finetuned-50e.pth"
+# python ./code/main.py --num_classes 200 --batch_size 256 --device "cuda:0" --training_phase "finetuning" --save_path  "./code/models/vit-small-224-finetuned-new200e5.pth" --epoch 200 --pretrained True --model_path "code/models/vit-small-224-new.pth" --model_architecture "vit_small_patch16_224.augreg_in21k_ft_in1k" --img_size 224
+
+# python ./code/main.py --num_classes 200 --batch_size 256 --device "cuda:0" --training_phase "finetuning" --save_path  "vit-small-224-finetuned-.pth" --epoch 50  --model_path "vit-small-224-.pth" --model_architecture "vit_small_patch16_224.augreg_in21k_ft_in1k" --img_size 224
+# python ./code/main.py --num_classes 200 --batch_size 128 --device "cuda:1" --training_phase "finetuning" --save_path  "vit-base-224-finetuned-.pth" --epoch 50  --model_path "vit-base-224-.pth" --model_architecture "vit_base_patch16_224.augreg_in21k_ft_in1k" --img_size 224
+
+
+
+# export HF_ENDPOINT="https://hf-mirror.com"
 from deit_modified_ghost import VisionTransformer
 from timm.data.constants import IMAGENET_DEFAULT_MEAN, IMAGENET_DEFAULT_STD
 from timm.data import create_transform
@@ -15,8 +22,10 @@ from pathlib import Path
 import argparse
 import os
 from thop import profile
+from datetime import datetime
 import time
 
+os.environ["HF_ENDPOINT"] = "https://hf-mirror.com"
 FILE = Path(__file__).resolve()
 ROOT = FILE.parents[0]  # YOLOv5 root directory
 ROOT = Path(os.path.relpath(ROOT, Path.cwd()))  # relative
@@ -46,29 +55,6 @@ parser.add_argument(
     # default="./tiny-imagenet-200/val",
     #default="F:/Download/ImageNet/val",
     help="Path to validation dataset (default: '../data/ImageNet200FullSize/val')",
-)
-parser.add_argument(
-    "--model_architecture",
-    type=str,
-    default="vit_small_patch16_224",
-    help="Architecture of model (default: 'vit_small_patch16_224')",
-)
-parser.add_argument(
-    "--pretrained",
-    default='',
-    help="To load pretrained weights of architecture instead of loading from model_path",
-)
-parser.add_argument(
-    "--model_path",
-    type=str,
-    default="./code/models/vit-small-224.pth",
-    help="Path to model initial checkpoint OR to store state dictionary if pretrained is true (default: './models/vit-small-224.pth')",
-)
-parser.add_argument(
-    "--save_path",
-    type=str,
-    default="./code/models/vit-small-224-finetuned-1.0.pth",
-    help="Path to save model checkpoint OR for loading test model (default: './models/vit-small-224-finetuned-1.0.pth')",
 )
 parser.add_argument(
     "--reorder_path",
@@ -117,8 +103,8 @@ parser.add_argument(
     help="Mode for applying ghost module (default: 'simple')",
 )
 parser.add_argument("--init_scratch", action="store_false", help="To start from scratch model")
-parser.add_argument("--training_phase", default="width", type=str,
-# parser.add_argument("--training_phase", default="finetuning", type=str,
+# parser.add_argument("--training_phase", default="width", type=str,
+parser.add_argument("--training_phase", default="finetuning", type=str,
                         help="can be finetuning, width, depth")
 parser.add_argument(
     "--epochs", type=int, default=50, help="Number of epochs (default: 50)"
@@ -126,22 +112,49 @@ parser.add_argument(
 parser.add_argument(
     "--device",
     type=str,
-    default="cuda:1",
+    default="cuda:0",
     help="Device to train (or test) on (default: 'cuda:0')",
 )
 parser.add_argument(
-    "--batch_size", type=int, default=256, help="Batch size (default: 64)"
+    "--batch_size", type=int, default=128, help="Batch size (default: 64)"
 )
 parser.add_argument(
     "--num_classes", type=int, default=200, help="Number of classes (default: 1000)"
 )
+parser.add_argument(
+    "--model_architecture",
+    type=str,
+    default="vit_small_patch16_224.augreg_in21k_ft_in1k",
+    # default="vit_small_patch16_224",
+    help="Architecture of model (default: 'vit_small_patch16_224')",
+)
+parser.add_argument(
+    "--pretrained",
+    default=True,
+    help="To load pretrained weights of architecture instead of loading from model_path",
+)
+parser.add_argument(
+    "--model_path",
+    type=str,
+    default="vit-base-224-.pth",
+    help="Path to model initial checkpoint OR to store state dictionary if pretrained is true (default: './models/vit-small-224.pth')",
+)
+parser.add_argument(
+    "--save_path",
+    type=str,
+    default="vit-base-224-finetuned-.pth",
+    help="Path to save model checkpoint OR for loading test model (default: './models/vit-small-224-finetuned-1.0.pth')",
+)
 args = parser.parse_args()
 
 path_cifar = './'
-save_dir = str(increment_path(Path(ROOT / "output" / "train" /'0824fine'), exist_ok=False))
+date = datetime.today().strftime("%m%d")
+save_dir = str(increment_path(Path(ROOT / "output" / "train" / f'{date}basefine'), exist_ok=False))
 logdir = os.path.join(save_dir,'log.txt')
+save_path = os.path.join(save_dir,args.save_path)
+model_path = os.path.join(save_dir,args.model_path)
 logger = get_logger(logdir)
-logger.info(f'training_phase: {args.training_phase}, epochs: {args.epochs}, device: {args.device}, batch_size: {args.batch_size}, num_classes: {args.num_classes}, save_path: {args.save_path}, img_size: {args.img_size}, pretrain:{args.pretrained}, model_path:{args.model_path}')
+logger.info(f'training_phase= {args.training_phase}, epochs= {args.epochs}, device= {args.device}, batch_size= {args.batch_size}, num_classes= {args.num_classes}, save_path（训练保存位置）= {args.save_path}, img_size= {args.img_size}, pretrain={args.pretrained}, model_path（加载权重保存位置）={args.model_path}, model_architecture={args.model_architecture} ')
 
 if torch.cuda.is_available():
     device = torch.device(args.device)
@@ -199,15 +212,17 @@ model = VisionTransformer( #初始化了模型
     ghost_mode=args.ghost_mode,
 )
 
-
-#optimizer = Adam(model.parameters(), lr=5e-4)
-#scheduler = lr_scheduler.ReduceLROnPlateau(optimizer, patience=7, factor=0.3)
-
 # stage 1, fintune teacher model
 if args.training_phase == "finetuning":
+    logger.info('正在微调')
     if args.pretrained == True:
+        logger.info('正在加载预训练权重')
         model = timm.create_model(args.model_architecture, pretrained=True)
-        torch.save(model.state_dict(), args.model_path)
+        model.head = nn.Linear(model.head.in_features, args.num_classes) #ok这样能解决头的问题
+        logger.info("已调整分类头")
+        torch.save(model.state_dict(), model_path)
+        logger.info(f'已创建加载预训练权重并保存到{model_path}')
+        # model.load_state_dict(torch.load(args.model_path), strict=False)
 
     train(model, #进了utils.py的train()
           train_loader,
@@ -215,7 +230,7 @@ if args.training_phase == "finetuning":
           mode='finetuning',
           epochs=args.epochs,
           loss_fn=nn.CrossEntropyLoss(),
-          model_path=args.save_path,
+          model_path=save_path,
           device=device,logger=logger,test_loader=test_loader)
 
 # stage 2, reorder teacher model, 然后做mlp宽度和atten heads自适应蒸馏
@@ -226,7 +241,7 @@ if args.training_phase == "width":
           mode='width',
           epochs=100,
           loss_fn=nn.CrossEntropyLoss(),
-          model_path=args.save_path,
+          model_path=save_path,
           device=device,
           img_size=args.img_size,
           patch_size=args.patch_size,
@@ -258,7 +273,7 @@ if args.training_phase == "depth":
           mode='depth',
           epochs=1,
           loss_fn=nn.CrossEntropyLoss(),
-          model_path=args.save_path,
+          model_path=save_path,
           device=device,
           img_size=args.img_size,
           patch_size=args.patch_size,

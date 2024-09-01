@@ -6,3 +6,4 @@ output/
 cifar*/
 testmodel*/
 fdhmodel*/
+*.pth
