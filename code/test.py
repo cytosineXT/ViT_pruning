@@ -105,7 +105,7 @@ args = parser.parse_args()
 FILE = Path(__file__).resolve()
 ROOT = FILE.parents[0]  # YOLOv5 root directory
 ROOT = Path(os.path.relpath(ROOT, Path.cwd()))  # relative
-save_dir = str(increment_path(Path(ROOT / "output" / "test" /'0824entro-'), exist_ok=False))
+save_dir = str(increment_path(Path(ROOT / "output" / "test" /'0824fine-'), exist_ok=False))
 logdir = os.path.join(save_dir,'log.txt')
 logger = get_logger(logdir)
 
@@ -121,7 +121,8 @@ else:
 path_val = args.path_val
 
 train_transforms = create_transform(
-    input_size=args.img_size,
+    input_size=224,
+    # input_size=args.img_size,
     is_training=True,
     color_jitter=0.4,
     auto_augment="rand-m9-mstd0.5-inc1",
@@ -132,8 +133,9 @@ train_transforms = create_transform(
 )
 val_transforms = transforms.Compose(
     [
-        transforms.Resize(args.img_size + 32),
-        transforms.CenterCrop(args.img_size),
+        transforms.Resize((224, 224)),
+        # transforms.Resize(args.img_size + 32),
+        # transforms.CenterCrop(args.img_size),
         transforms.ToTensor(),
         transforms.Normalize(mean=IMAGENET_DEFAULT_MEAN, std=IMAGENET_DEFAULT_STD),
     ]
@@ -160,43 +162,43 @@ model = VisionTransformer(
     ghost_mode=args.ghost_mode,
 )
 
-for i, width in enumerate(tqdm([0.25, 0.5, 0.75, 1], desc="Width", leave=False)):
-    # for j, depth in enumerate(tqdm([0.25,0.5], desc="Depth", leave=False)):
-    path = os.path.join("code/testmodel2/modelsentro2", f"Width{width}_model_width_distillation.pt")
-    # print(0)
-    try:
-        model.apply(lambda m: setattr(m, 'width_mult', width))
-        model.load_state_dict(torch.load(path,weights_only=True), strict=False)
-    except:
-        continue
-    logger.info(f'--use {path} to test--')
-    model.to(device)
-    model.eval()
-    correct = 0
-    total = 0
-    with torch.no_grad():
-        for i, data in enumerate(tqdm(test_loader, desc="Evaluating", leave=False)):
-            inputs, labels = tuple(t.to(device) for t in data)
-            outputs = model(inputs)
-            _, predicted = torch.max(outputs.data, 1)
-            total += labels.size(0)
-            correct += (predicted == labels).sum().item()
-    # print(1)
-    accuracy = 100 * correct / total
-    logger.info(f'Accuracy of the  network on the test images: %0.2f %%' % accuracy)
-    num_params = sum(p.numel() for p in model.parameters())
-    logger.info('Number of parameters: %d' % num_params)
-    inputs, _ = next(iter(test_loader))
-    inputs = inputs.to(device)
-    with torch.no_grad():
-        start_time = time.time()
-        outputs = model(inputs)
-        end_time = time.time()
-    inference_time = end_time - start_time
-    logger.info('Inference time: %.2fms' % (inference_time * 1000))
-    flops, params = profile(model, inputs=(inputs,))
-    logger.info('Number of parameters: %d' % params)
-    logger.info('FLOPS: %.2fG' % (flops / 1e9))
+# for i, width in enumerate(tqdm([0.25, 0.5, 0.75, 1], desc="Width", leave=False)):
+#     # for j, depth in enumerate(tqdm([0.25,0.5], desc="Depth", leave=False)):
+#     path = os.path.join("code/testmodel2/modelsentro2", f"Width{width}_model_width_distillation.pt")
+#     # print(0)
+#     try:
+#         model.apply(lambda m: setattr(m, 'width_mult', width))
+#         model.load_state_dict(torch.load(path,weights_only=True), strict=False)
+#     except:
+#         continue
+#     logger.info(f'--use {path} to test--')
+#     model.to(device)
+#     model.eval()
+#     correct = 0
+#     total = 0
+#     with torch.no_grad():
+#         for i, data in enumerate(tqdm(test_loader, desc="Evaluating", leave=False)):
+#             inputs, labels = tuple(t.to(device) for t in data)
+#             outputs = model(inputs)
+#             _, predicted = torch.max(outputs.data, 1)
+#             total += labels.size(0)
+#             correct += (predicted == labels).sum().item()
+#     # print(1)
+#     accuracy = 100 * correct / total
+#     logger.info(f'Accuracy of the  network on the test images: %0.2f %%' % accuracy)
+#     num_params = sum(p.numel() for p in model.parameters())
+#     logger.info('Number of parameters: %d' % num_params)
+#     inputs, _ = next(iter(test_loader))
+#     inputs = inputs.to(device)
+#     with torch.no_grad():
+#         start_time = time.time()
+#         outputs = model(inputs)
+#         end_time = time.time()
+#     inference_time = end_time - start_time
+#     logger.info('Inference time: %.2fms' % (inference_time * 1000))
+#     flops, params = profile(model, inputs=(inputs,))
+#     logger.info('Number of parameters: %d' % params)
+#     logger.info('FLOPS: %.2fG' % (flops / 1e9))
 
 
 # for i, width in enumerate(tqdm([0.25, 0.5, 0.75, 1], desc="Width", leave=False)):
@@ -239,34 +241,34 @@ for i, width in enumerate(tqdm([0.25, 0.5, 0.75, 1], desc="Width", leave=False))
 #         logger.info('FLOPS: %.2fG' % (flops / 1e9))
 
 
-# path = os.path.join("/home/jxt/docworkspace/ViT_pruning/code/testmodel/vit-small-224-finetuned-50e.pth")
-# logger.info(path)
-# model.load_state_dict(torch.load(path,weights_only=True), strict=False)
+path = os.path.join("code/output/train/0903cifar10_fine224/vit-small-224-cifar10-finetuned-.pth")
+logger.info(path)
+model.load_state_dict(torch.load(path,weights_only=True), strict=False)
 
-# model.to(device)
-# model.eval()
-# correct = 0
-# total = 0
-# with torch.no_grad():
-#     for i, data in enumerate(tqdm(test_loader, desc="Evaluating", leave=False)):
-#         inputs, labels = tuple(t.to(device) for t in data)
-#         outputs = model(inputs)
-#         _, predicted = torch.max(outputs.data, 1)
-#         total += labels.size(0)
-#         correct += (predicted == labels).sum().item()
+model.to(device)
+model.eval()
+correct = 0
+total = 0
+with torch.no_grad():
+    for i, data in enumerate(tqdm(test_loader, desc="Evaluating", leave=False)):
+        inputs, labels = tuple(t.to(device) for t in data)
+        outputs = model(inputs)
+        _, predicted = torch.max(outputs.data, 1)
+        total += labels.size(0)
+        correct += (predicted == labels).sum().item()
 
-# accuracy = 100 * correct / total
-# logger.info(f'Accuracy of the  network on the test images: %0.2f %%' % accuracy)
-# num_params = sum(p.numel() for p in model.parameters())
-# logger.info('Number of parameters: %d' % num_params)
-# inputs, _ = next(iter(test_loader))
-# inputs = inputs.to(device)
-# with torch.no_grad():
-#     start_time = time.time()
-#     outputs = model(inputs)
-#     end_time = time.time()
-# inference_time = end_time - start_time
-# logger.info('Inference time: %.2fms' % (inference_time * 1000))
-# flops, params = profile(model, inputs=(inputs,))
-# logger.info('Number of parameters: %d' % params)
-# logger.info('FLOPS: %.2fG' % (flops / 1e9))
+accuracy = 100 * correct / total
+logger.info(f'Accuracy of the  network on the test images: %0.2f %%' % accuracy)
+num_params = sum(p.numel() for p in model.parameters())
+logger.info('Number of parameters: %d' % num_params)
+inputs, _ = next(iter(test_loader))
+inputs = inputs.to(device)
+with torch.no_grad():
+    start_time = time.time()
+    outputs = model(inputs)
+    end_time = time.time()
+inference_time = end_time - start_time
+logger.info('Inference time: %.2fms' % (inference_time * 1000))
+flops, params = profile(model, inputs=(inputs,))
+logger.info('Number of parameters: %d' % params)
+logger.info('FLOPS: %.2fG' % (flops / 1e9))

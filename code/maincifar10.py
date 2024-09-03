@@ -1,4 +1,11 @@
+# python ./code/maincifar10.py --num_classes 10 --batch_size 4096 --device "cuda:1" --img_size 32 --training_phase "width" --save_path 'code/models/vit-small-224-cifar10-finetuned-86.94.pth' --epochs 50
 # python ./code/maincifar10.py --num_classes 10 --batch_size 4096 --device "cuda:1" --img_size 32 --training_phase "depth" --save_path '/home/jxt/docworkspace/ViT_pruning/code/output/train/0821cifar10_6' --epochs 1
+# python ./code/maincifar10.py --num_classes 10 --batch_size 4096 --img_size 32 --device "cuda:1" --training_phase "finetuning" --save_path  "./code/models/vit-small-224-cifar10-finetuned-200e.pth" --epoch 200 --pretrained True --model_path "code/models/vit-small-224-cifar10.pth"
+# python ./code/maincifar10.py --num_classes 10 --batch_size 4096 --img_size 32 --device "cuda:1" --training_phase "finetuning" --save_path  "vit-small-224-cifar10-finetuned-.pth" --epoch 50 --model_path "vit-small-224-cifar10-.pth" --model_architecture "vit_small_patch16_224.augreg_in21k_ft_in1k"
+# python ./code/maincifar10.py --num_classes 10 --batch_size 4096 --img_size 32 --device "cuda:1" --training_phase "width" --save_path  "code/output/train/0901cifar10_fine2/vit-small-224-cifar10-finetuned-.pth" --epoch 50 --model_architecture "vit_small_patch16_224.augreg_in21k_ft_in1k"
+# python ./code/maincifar10.py --num_classes 10 --batch_size 4096 --img_size 32 --device "cuda:1" --training_phase "depth" --save_path  "code/output/train/0901cifar10_width" --epoch 50 --model_architecture "vit_small_patch16_224.augreg_in21k_ft_in1k"
+
+# python ./code/maincifar10.py --num_classes 10 --batch_size 128 --img_size 32 --device "cuda:1" --training_phase "finetuning" --save_path  "vit-small-224-cifar10-finetuned-.pth" --epoch 100 --model_path "vit-small-224-cifar10-.pth" --model_architecture "vit_small_patch16_224.augreg_in21k_ft_in1k"
 from deit_modified_ghost import VisionTransformer
 from timm.data.constants import IMAGENET_DEFAULT_MEAN, IMAGENET_DEFAULT_STD
 from timm.data import create_transform
@@ -10,12 +17,14 @@ from torchvision.datasets import CIFAR10, CIFAR100, ImageNet, ImageFolder
 from torchvision import transforms
 # from torch.optim import Adam, lr_scheduler
 from tqdm import tqdm
-from utils import train, get_logger, increment_path
+from utils import train, get_logger, increment_path, load_pretrained_weights
 from pathlib import Path
 import argparse
 import os
 from thop import profile
+from datetime import datetime
 import time
+from timm.models.layers import PatchEmbed
 
 
 FILE = Path(__file__).resolve()
@@ -57,7 +66,7 @@ parser.add_argument(
 )
 parser.add_argument(
     "--pretrained",
-    default='',
+    default=True,
     help="To load pretrained weights of architecture instead of loading from model_path",
 )
 parser.add_argument(
@@ -137,10 +146,14 @@ parser.add_argument(
 args = parser.parse_args()
 
 path_cifar = './'
-save_dir = str(increment_path(Path(ROOT / "output" / "train" /'0823cifar10_depth'), exist_ok=False))
+date = datetime.today().strftime("%m%d")
+save_dir = str(increment_path(Path(ROOT / "output" / "train" / f'{date}cifar10_fine224'), exist_ok=False))
+# save_dir = str(increment_path(Path(ROOT / "output" / "train" /'0901cifar10_fine'), exist_ok=False))
 logdir = os.path.join(save_dir,'log.txt')
+save_path = os.path.join(save_dir,args.save_path)
+model_path = os.path.join(save_dir,args.model_path)
 logger = get_logger(logdir)
-logger.info(f'training_phase: {args.training_phase}, epochs: {args.epochs}, device: {args.device}, batch_size: {args.batch_size}, num_classes: {args.num_classes}, save_path: {args.save_path}, img_size: {args.img_size}, pretrain:{args.pretrained}, model_path:{args.model_path}')
+logger.info(f'training_phase= {args.training_phase}, epochs= {args.epochs}, device= {args.device}, batch_size= {args.batch_size}, num_classes= {args.num_classes}, save_path（训练保存位置）= {args.save_path}, img_size= {args.img_size}, pretrain={args.pretrained}, model_path（加载权重保存位置）={args.model_path}, model_architecture={args.model_architecture} ')
 
 if torch.cuda.is_available():
     device = torch.device(args.device)
@@ -154,7 +167,8 @@ path_train = args.path_train
 path_val = args.path_val
 
 train_transforms = create_transform(
-    input_size=args.img_size,
+    input_size=224,#好吧 跑是能跑了，但是速度就特别慢了。。从一分钟一轮变成十分钟一轮。。。
+    # input_size=args.img_size,
     is_training=True,
     color_jitter=0.4,
     auto_augment="rand-m9-mstd0.5-inc1",
@@ -165,8 +179,9 @@ train_transforms = create_transform(
 )
 val_transforms = transforms.Compose(
     [
-        transforms.Resize(args.img_size + 32),
-        transforms.CenterCrop(args.img_size),
+        transforms.Resize((224, 224)),
+        # transforms.Resize(args.img_size + 32),
+        # transforms.CenterCrop(args.img_size),
         transforms.ToTensor(),
         transforms.Normalize(mean=IMAGENET_DEFAULT_MEAN, std=IMAGENET_DEFAULT_STD),
     ]
@@ -208,17 +223,35 @@ model = VisionTransformer( #初始化了模型
 if args.training_phase == "finetuning":
     if args.pretrained == True:
         model = timm.create_model(args.model_architecture, pretrained=True)
-        torch.save(model.state_dict(), args.model_path)
+        model.head = nn.Linear(model.head.in_features, args.num_classes) #ok这样能解决头的问题
+        # model.patch_embed = PatchEmbed(
+        #     img_size=args.img_size,
+        #     patch_size=args.patch_size,
+        #     in_chans=args.in_chans,
+        #     embed_dim=args.embed_dim,
+        # )
+        # model.pos_embed = nn.Parameter(
+        #     torch.zeros(1, model.patch_embed.num_patches + 1, args.embed_dim)
+        # )
+        logger.info("已调整分类头")
+        # logger.info("已调整分类头和嵌入层")
+        torch.save(model.state_dict(), model_path)
+        logger.info(f'已创建加载预训练权重并保存到{model_path}')
+        # load_pretrained_weights(model, 'code/models/vit-small-224-0831.pth')
+        # logger.info('加载了权重code/models/vit-small-224-0831.pth')
 
     train(model, #进了utils.py的train()
           train_loader,
           test_loader,
+          device=device,
+          img_size=args.img_size,
           mode='finetuning',
           epochs=args.epochs,
           loss_fn=nn.CrossEntropyLoss(),
-          model_path=args.save_path,
+          model_path=save_path,
           logger=logger,
-          savedir=save_dir)
+          savedir=save_dir,
+          test_loader=test_loader)
 
 # stage 2, reorder teacher model, 然后做mlp宽度和atten heads自适应蒸馏
 if args.training_phase == "width":
@@ -247,7 +280,8 @@ if args.training_phase == "width":
           width_list=[0.25, 0.5, 0.75,1],
           model_architecture=args.model_architecture,
           logger=logger,
-          savedir=save_dir
+          savedir=save_dir,
+          test_loader=test_loader
           )
 
 # stage 3, block深度自适应蒸馏
@@ -274,10 +308,11 @@ if args.training_phase == "depth":
           no_ghost=args.no_ghost,
           ghost_mode=args.ghost_mode,
           heads=args.num_heads,
-          width_list=[0.25, 0.5, 0.75],
+          width_list=[0.25, 0.5, 0.75,1],
           depth_list=[0.75, 0.5],
           logger=logger,
-          savedir=save_dir
+          savedir=save_dir,
+          test_loader=test_loader
         #   depth_list=[0.25, 0.5, 0.75, 1]
           )
 

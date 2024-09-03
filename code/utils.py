@@ -30,6 +30,16 @@ from tqdm import tqdm
 import logging
 from pathlib import Path
 
+def load_pretrained_weights(model, checkpoint_path):
+    state_dict = torch.load(checkpoint_path)
+    model_dict = model.state_dict()
+
+    # 过滤掉不匹配的参数
+    filtered_dict = {k: v for k, v in state_dict.items() if k in model_dict and v.size() == model_dict[k].size()}
+    model_dict.update(filtered_dict)
+    model.load_state_dict(model_dict)
+# load_pretrained_weights(model, 'code/models/vit-small-224-0831.pth')
+
 def increment_path(path, exist_ok=False, sep="", mkdir=True):
     path = Path(path)  # os-agnostic
     if path.exists() and not exist_ok:
@@ -202,14 +212,14 @@ def compute_neuron_head_importance(
 
         #-----------一 loss重要性----------------
         # calculate head importance 
-        # outputs = model(input_ids, head_mask=head_mask)
-        # loss = loss_fn(outputs, label_ids)
-        # loss.backward()
-        # head_importance += head_mask.grad.abs().detach()
-        # # calculate  neuron importance
-        # for w1, b1, w2, current_importance in zip(intermediate_weight, intermediate_bias, output_weight, neuron_importance):
-        #     current_importance += ((w1 * w1.grad).sum(dim=1) + b1 * b1.grad).abs().detach()
-        #     current_importance += ((w2 * w2.grad).sum(dim=0)).abs().detach()
+        outputs = model(input_ids, head_mask=head_mask)
+        loss = loss_fn(outputs, label_ids)
+        loss.backward()
+        head_importance += head_mask.grad.abs().detach()
+        # calculate  neuron importance
+        for w1, b1, w2, current_importance in zip(intermediate_weight, intermediate_bias, output_weight, neuron_importance):
+            current_importance += ((w1 * w1.grad).sum(dim=1) + b1 * b1.grad).abs().detach()
+            current_importance += ((w2 * w2.grad).sum(dim=0)).abs().detach()
 
         # # #-----------二 entropy重要性----------------
         # outputs , hidden, attn_weights = model(input_ids, return_states=True, return_attn_weight = True)
@@ -248,27 +258,27 @@ def compute_neuron_head_importance(
         #     current_importance += neuron_entropy.abs().detach()
         
         # #-----------三 hessian重要性----------------
-        outputs = model(input_ids, head_mask=head_mask)
-        loss = loss_fn(outputs, label_ids)
-        grads = torch.autograd.grad(loss, head_mask, create_graph=True)[0]
-        for layer in range(n_layers):
-            for head in range(n_heads):
-                hessian = torch.autograd.grad(grads[layer, head], head_mask, retain_graph=True)[0]
-                head_importance[layer, head] += hessian[layer, head].abs().detach()
-                # head_importance[layer, head] = head_importance[layer, head] + hessian.abs().detach()
+        # outputs = model(input_ids, head_mask=head_mask)
+        # loss = loss_fn(outputs, label_ids)
+        # grads = torch.autograd.grad(loss, head_mask, create_graph=True)[0]
+        # for layer in range(n_layers):
+        #     for head in range(n_heads):
+        #         hessian = torch.autograd.grad(grads[layer, head], head_mask, retain_graph=True)[0]
+        #         head_importance[layer, head] += hessian[layer, head].abs().detach()
+        #         # head_importance[layer, head] = head_importance[layer, head] + hessian.abs().detach()
 
-        for w1, b1, w2, current_importance in zip(intermediate_weight, intermediate_bias, output_weight, neuron_importance):
-            grads_w1 = torch.autograd.grad(loss, w1, create_graph=True)[0]
-            grads_b1 = torch.autograd.grad(loss, b1, create_graph=True)[0]
-            grads_w2 = torch.autograd.grad(loss, w2, create_graph=True)[0]
+        # for w1, b1, w2, current_importance in zip(intermediate_weight, intermediate_bias, output_weight, neuron_importance):
+        #     grads_w1 = torch.autograd.grad(loss, w1, create_graph=True)[0]
+        #     grads_b1 = torch.autograd.grad(loss, b1, create_graph=True)[0]
+        #     grads_w2 = torch.autograd.grad(loss, w2, create_graph=True)[0]
 
-            hessian_w1 = torch.autograd.grad(grads_w1.sum(), w1, retain_graph=True)[0]
-            hessian_b1 = torch.autograd.grad(grads_b1.sum(), b1, retain_graph=True)[0]
-            hessian_w2 = torch.autograd.grad(grads_w2.sum(), w2, retain_graph=True)[0]
+        #     hessian_w1 = torch.autograd.grad(grads_w1.sum(), w1, retain_graph=True)[0]
+        #     hessian_b1 = torch.autograd.grad(grads_b1.sum(), b1, retain_graph=True)[0]
+        #     hessian_w2 = torch.autograd.grad(grads_w2.sum(), w2, retain_graph=True)[0]
 
-            current_importance += (hessian_w1 * w1).sum(dim=1).abs().detach()
-            current_importance += (hessian_b1 * b1).abs().detach()
-            current_importance += (hessian_w2 * w2).sum(dim=0).abs().detach()
+        #     current_importance += (hessian_w1 * w1).sum(dim=1).abs().detach()
+        #     current_importance += (hessian_b1 * b1).abs().detach()
+        #     current_importance += (hessian_w2 * w2).sum(dim=0).abs().detach()
 
         break
     return head_importance, neuron_importance #好吧 实际上neuron_importance根本就没做，都是空的，在reorder_head_neuron.py里也把neuron相关的删掉了，太逗了
@@ -373,8 +383,8 @@ def train(
                 eval_data, model, args["depth"], args["heads"],
                 loss_fn=loss_fn, device=device
                 )
-            visualize_head_importance(head_importance,savedir)
-            visualize_neuron_importance(neuron_importance,savedir)
+            # visualize_head_importance(head_importance,savedir)
+            # visualize_neuron_importance(neuron_importance,savedir)
             # reorder_neuron_head(model, head_importance, neuron_importance) #这里是将其按重要性排序的 草 跑不了就别跑 nnd
             #width_list = sorted(width_list, reverse=True)
             for i, width in enumerate(tqdm(width_list, desc="Width", leave=False)):
