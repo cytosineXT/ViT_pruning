@@ -1,5 +1,6 @@
 # python ./code/test.py --num_classes 200 --batch_size 256 --device "cuda:0" --img_size 224 
-
+# python ./code/test.py --num_classes 1000 --batch_size 256 --device "cuda:0" --img_size 224 --model_architecture "vit_base_patch16_224.augreg_in21k_ft_in1k" --embed_dim 768 #可以跑B但是是0。。
+# python ./code/test.py --num_classes 200 --batch_size 256 --device "cuda:0" --img_size 224 --model_architecture "vit_base_patch16_224.augreg_in21k_ft_in1k"
 from deit_modified_ghost import VisionTransformer
 from timm.data.constants import IMAGENET_DEFAULT_MEAN, IMAGENET_DEFAULT_STD
 from timm.data import create_transform
@@ -14,6 +15,8 @@ from thop import profile
 import time
 import argparse
 from pathlib import Path
+import timm
+from torch import nn
 
 parser = argparse.ArgumentParser()
 
@@ -102,10 +105,14 @@ parser.add_argument("--training_phase", default="test", type=str,
                         help="can be finetuning, width, depth")
 args = parser.parse_args()
 
+from datetime import datetime
+
 FILE = Path(__file__).resolve()
 ROOT = FILE.parents[0]  # YOLOv5 root directory
 ROOT = Path(os.path.relpath(ROOT, Path.cwd()))  # relative
-save_dir = str(increment_path(Path(ROOT / "output" / "test" /'0824fine-'), exist_ok=False))
+date = datetime.today().strftime("%m%d")
+save_dir = str(increment_path(Path(ROOT / "output" / "test" / f'{date}Bfine'), exist_ok=False))
+# save_dir = str(increment_path(Path(ROOT / "output" / "test" /'0824entro-'), exist_ok=False))
 logdir = os.path.join(save_dir,'log.txt')
 logger = get_logger(logdir)
 
@@ -241,8 +248,11 @@ model = VisionTransformer(
 #         logger.info('FLOPS: %.2fG' % (flops / 1e9))
 
 
-path = os.path.join("code/output/train/0903cifar10_fine224/vit-small-224-cifar10-finetuned-.pth")
+path = os.path.join("/home/jiangxiaotian/workspace/ViT_pruning/code/output/train/0901basefine/vit-base-224-finetuned-7864.pth")
 logger.info(path)
+
+model = timm.create_model(args.model_architecture, pretrained=False)
+model.head = nn.Linear(model.head.in_features, args.num_classes)
 model.load_state_dict(torch.load(path,weights_only=True), strict=False)
 
 model.to(device)

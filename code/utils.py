@@ -257,7 +257,7 @@ def compute_neuron_head_importance(
         #     # 更新神经元重要性
         #     current_importance += neuron_entropy.abs().detach()
         
-        # #-----------三 hessian重要性----------------
+        # # #-----------三 hessian重要性----------------
         # outputs = model(input_ids, head_mask=head_mask)
         # loss = loss_fn(outputs, label_ids)
         # grads = torch.autograd.grad(loss, head_mask, create_graph=True)[0]
@@ -280,7 +280,7 @@ def compute_neuron_head_importance(
         #     current_importance += (hessian_b1 * b1).abs().detach()
         #     current_importance += (hessian_w2 * w2).sum(dim=0).abs().detach()
 
-        break
+        # break
     return head_importance, neuron_importance #好吧 实际上neuron_importance根本就没做，都是空的，在reorder_head_neuron.py里也把neuron相关的删掉了，太逗了
 
 def reorder_neuron_head(model, head_importance, neuron_importance):
@@ -324,8 +324,7 @@ def train(
     model, train_data, eval_data, device,
     mode = "finetuning", width_list = None,
     weights_file = None, model_path = "./",
-    loss_fn=nn.CrossEntropyLoss(), epochs=10,depth_list=None,logger=None,savedir=None,test_loader=None,
-        **args
+    loss_fn=nn.CrossEntropyLoss(), epochs=10,depth_list=None,logger=None,savedir=None,test_loader=None,**args
     ):
     assert mode in ["finetuning", "width", "depth"], "Wrong mode input"
 
@@ -383,8 +382,10 @@ def train(
                 eval_data, model, args["depth"], args["heads"],
                 loss_fn=loss_fn, device=device
                 )
+            ##-------------------重要性可视化------------------
             # visualize_head_importance(head_importance,savedir)
             # visualize_neuron_importance(neuron_importance,savedir)
+
             # reorder_neuron_head(model, head_importance, neuron_importance) #这里是将其按重要性排序的 草 跑不了就别跑 nnd
             #width_list = sorted(width_list, reverse=True)
             for i, width in enumerate(tqdm(width_list, desc="Width", leave=False)):
@@ -432,6 +433,7 @@ def train(
             teacher_model.apply(lambda m: setattr(m, 'width_mult', width))
             teacher_model.to(device)
             path = os.path.join(model_path, f"Width{width}_model_width_distillation.pt")
+            # path = os.path.join(model_path, f"Width{width}_model_width_distillation.pt")
             teacher_model.load_state_dict(torch.load(path), strict=False)
             for i, depth in enumerate(tqdm(depth_list, desc="Depth", leave=False)):
                 model.apply(lambda m: setattr(m, 'width_mult', width))
@@ -486,6 +488,7 @@ def train_model(model, train_data, eval_data, path, epochs, loss_fn, optimizer, 
 
         if eval_loss < best_eval_loss:
             torch.save(model.state_dict(), path)
+            logger.info(f'存到{path}')
             best_eval_loss = eval_loss
 
         logger.info(f"Validation loss = {eval_loss:.4f}")
