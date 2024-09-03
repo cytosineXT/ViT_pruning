@@ -18,7 +18,7 @@ from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_sc
 # import pickle
 import os
 from thop import profile
-# import time
+import time
 # import re
 
 from timm.models.layers import DropPath, PatchEmbed, trunc_normal_, lecun_normal_
@@ -58,7 +58,6 @@ def get_logger(filename, verbosity=1, name=None):
     sh = logging.StreamHandler()
     sh.setFormatter(formatter)
     logger.addHandler(sh)
- 
     return logger
 
 #try:
@@ -82,7 +81,22 @@ def soft_cross_entropy(predicts, targets):
 
 import matplotlib.pyplot as plt
 import seaborn as sns
-def visualize_head_importance(head_importance):
+import matplotlib.font_manager as fm
+from matplotlib import rcParams
+# font_prop = fm.FontProperties(fname="simsun.ttc")
+# plt.rcParams['font.family'] = font_prop.get_name()
+
+config = {
+    "font.family":'serif',
+    # "font.size": 18,
+    "mathtext.fontset":'stix',
+    "font.serif": ['SimSun'],
+}
+rcParams.update(config)
+
+# plt.rcParams['axes.unicode_minus'] = False
+
+def visualize_head_importance(head_importance,save_dir):
     """
     可视化 head_importance 的热力图
     Args:
@@ -94,13 +108,15 @@ def visualize_head_importance(head_importance):
 
     plt.figure(figsize=(12, 6))
     sns.heatmap(head_importance, annot=True, cmap="YlGnBu", cbar=True)
+    zh_font = fm.FontProperties(family='SimHei')
     
-    plt.title("Head Importance per Layer")
-    plt.xlabel("Attention Heads")
-    plt.ylabel("Transformer Layers")
-    plt.savefig('./code/modelshessian2/headimportance.png') #这里可能可以修改
+    plt.title("每Transformer层注意力头重要性图")
+    plt.xlabel("注意力头")
+    plt.ylabel("Transformer层")
 
-def visualize_neuron_importance(neuron_importance):
+    plt.savefig(os.path.join(save_dir,'headimportance.png')) 
+
+def visualize_neuron_importance(neuron_importance,save_dir):
     """
     Visualizes the neuron importance as a heatmap.
     
@@ -113,40 +129,40 @@ def visualize_neuron_importance(neuron_importance):
     # Plot the heatmap
     plt.figure(figsize=(20, 10))  # Adjust the size based on your needs
     sns.heatmap(importance_matrix, cmap="YlGnBu", cbar=True)
-    plt.title("Neuron Importance Heatmap")
-    plt.xlabel("Neuron Index")
-    plt.ylabel("Layer Index")
-    plt.savefig('./code/modelshessian2/neuronimportance.png')
+    plt.title("每MLP层神经元重要性图")
+    plt.xlabel("神经元")
+    plt.ylabel("MLP层")
+    plt.savefig(os.path.join(save_dir,'neuronimportance.png'))
 
-def visualize_neuron_importance2(neuron_importance, layer_idx=None):
-    """
-    Visualizes the neuron importance using a bar chart.
+# def visualize_neuron_importance2(neuron_importance, layer_idx=None):
+#     """
+#     Visualizes the neuron importance using a bar chart.
     
-    Args:
-    - neuron_importance (list of Tensors): List of tensors where each tensor contains the importance of neurons in a specific layer.
-    - layer_idx (int, optional): If specified, only visualizes the importance for the given layer index. Otherwise, visualizes all layers.
-    """
+#     Args:
+#     - neuron_importance (list of Tensors): List of tensors where each tensor contains the importance of neurons in a specific layer.
+#     - layer_idx (int, optional): If specified, only visualizes the importance for the given layer index. Otherwise, visualizes all layers.
+#     """
 
-    # Convert neuron_importance to a numpy array for easy plotting
-    importance_values = [imp.cpu().numpy() for imp in neuron_importance]
+#     # Convert neuron_importance to a numpy array for easy plotting
+#     importance_values = [imp.cpu().numpy() for imp in neuron_importance]
 
-    if layer_idx is not None:
-        # Plot for a specific layer
-        plt.figure(figsize=(10, 6))
-        plt.bar(range(len(importance_values[layer_idx])), importance_values[layer_idx])
-        plt.title(f'Neuron Importance for Layer {layer_idx}')
-        plt.xlabel('Neuron Index')
-        plt.ylabel('Importance Score')
-        plt.savefig('./code/modelshessian2/neuronimportance.png')
-    else:
-        # Plot all layers
-        for i, importance in enumerate(importance_values):
-            plt.figure(figsize=(10, 6))
-            plt.bar(range(len(importance)), importance)
-            plt.title(f'Neuron Importance for Layer {i}')
-            plt.xlabel('Neuron Index')
-            plt.ylabel('Importance Score')
-            plt.savefig(f'./code/modelshessian2/neuronimportance{i}.png')
+#     if layer_idx is not None:
+#         # Plot for a specific layer
+#         plt.figure(figsize=(10, 6))
+#         plt.bar(range(len(importance_values[layer_idx])), importance_values[layer_idx])
+#         plt.title(f'第{layer_idx}MLP层神经元重要性图 ')
+#         plt.xlabel('神经元')
+#         plt.ylabel('重要性得分')
+#         plt.savefig('./code/modelshessian2/neuronimportance.png')
+#     else:
+#         # Plot all layers
+#         for i, importance in enumerate(importance_values):
+#             plt.figure(figsize=(10, 6))
+#             plt.bar(range(len(importance)), importance)
+#             plt.title(f'Neuron Importance for Layer {i}')
+#             plt.xlabel('Neuron Index')
+#             plt.ylabel('Importance Score')
+#             plt.savefig(f'./code/modelshessian2/neuronimportance{i}.png')
 
 
 """### Importance reordering"""
@@ -186,32 +202,32 @@ def compute_neuron_head_importance(
 
         #-----------一 loss重要性----------------
         # calculate head importance 
-        # outputs = model(input_ids, head_mask=head_mask)
-        # loss = loss_fn(outputs, label_ids)
-        # loss.backward()
-        # head_importance += head_mask.grad.abs().detach()
+        outputs = model(input_ids, head_mask=head_mask)
+        loss = loss_fn(outputs, label_ids)
+        loss.backward()
+        head_importance += head_mask.grad.abs().detach()
         # calculate  neuron importance
-        # for w1, b1, w2, current_importance in zip(intermediate_weight, intermediate_bias, output_weight, neuron_importance):
-        #     current_importance += ((w1 * w1.grad).sum(dim=1) + b1 * b1.grad).abs().detach()
-        #     current_importance += ((w2 * w2.grad).sum(dim=0)).abs().detach()
+        for w1, b1, w2, current_importance in zip(intermediate_weight, intermediate_bias, output_weight, neuron_importance):
+            current_importance += ((w1 * w1.grad).sum(dim=1) + b1 * b1.grad).abs().detach()
+            current_importance += ((w2 * w2.grad).sum(dim=0)).abs().detach()
 
         # # #-----------二 entropy重要性----------------
-        # # outputs , hidden, attn_weights = model(input_ids, return_states=True, return_attn_weight = True)
-        # # # attn_weights = attn  # assuming this is a list of attention scores per layer
-        # # for layer in range(n_layers):
-        # #     for head in range(n_heads):
-        # #         # Computing entropy for each head
-        # #         probs = attn_weights[layer][:, head, :, :].mean(dim=0)
-        # #         # max_entropy = torch.log(torch.tensor(probs.shape[0], device=probs.device))  # 最大熵值
-        # #         # entropy = -(probs * torch.log(probs + 1e-10)).sum() / max_entropy #做个归一化
-        # #         entropy = -(probs * torch.log(probs + 1e-10)).sum(dim=[1]).mean(dim=0)
-        # #         # entropy = -(probs * torch.log(probs + 1e-10)).sum()
-        # #         head_importance[layer, head] += entropy.detach()
-        # # head_importance[layer, head] /= n_layers * n_heads
-        # # # for w1, b1, w2, current_importance in zip(intermediate_weight, intermediate_bias, output_weight, neuron_importance):
-        # #     neuron_output = torch.relu(torch.matmul(hidden[-2], w1.T) + b1)  # using ReLU as the activation function
-        # #     neuron_entropy = -(neuron_output * torch.log(neuron_output + 1e-10)).sum(dim=0)
-        # #     current_importance += neuron_entropy.abs().detach()
+        # outputs , hidden, attn_weights = model(input_ids, return_states=True, return_attn_weight = True)
+        # # attn_weights = attn  # assuming this is a list of attention scores per layer
+        # for layer in range(n_layers):
+        #     for head in range(n_heads):
+        #         # Computing entropy for each head
+        #         probs = attn_weights[layer][:, head, :, :].mean(dim=0)
+        #         # max_entropy = torch.log(torch.tensor(probs.shape[0], device=probs.device))  # 最大熵值
+        #         # entropy = -(probs * torch.log(probs + 1e-10)).sum() / max_entropy #做个归一化
+        #         entropy = -(probs * torch.log(probs + 1e-10)).sum(dim=[1]).mean(dim=0)
+        #         # entropy = -(probs * torch.log(probs + 1e-10)).sum()
+        #         head_importance[layer, head] += entropy.detach()
+        # head_importance[layer, head] /= n_layers * n_heads
+        # # for w1, b1, w2, current_importance in zip(intermediate_weight, intermediate_bias, output_weight, neuron_importance):
+        #     neuron_output = torch.relu(torch.matmul(hidden[-2], w1.T) + b1)  # using ReLU as the activation function
+        #     neuron_entropy = -(neuron_output * torch.log(neuron_output + 1e-10)).sum(dim=0)
+        #     current_importance += neuron_entropy.abs().detach()
         # outputs, hidden, attn_weights = model(input_ids, return_states=True, return_attn_weight=True)
         # for layer in range(n_layers):
         #     for head in range(n_heads):
@@ -231,30 +247,30 @@ def compute_neuron_head_importance(
         #     # 更新神经元重要性
         #     current_importance += neuron_entropy.abs().detach()
         
-        # #-----------三 hessian重要性----------------
-        outputs = model(input_ids, head_mask=head_mask)
-        loss = loss_fn(outputs, label_ids)
-        grads = torch.autograd.grad(loss, head_mask, create_graph=True)[0]
-        for layer in range(n_layers):
-            for head in range(n_heads):
-                hessian = torch.autograd.grad(grads[layer, head], head_mask, retain_graph=True)[0]
-                head_importance[layer, head] += hessian[layer, head].abs().detach()
-                # head_importance[layer, head] = head_importance[layer, head] + hessian.abs().detach()
+        # # #-----------三 hessian重要性----------------
+        # outputs = model(input_ids, head_mask=head_mask)
+        # loss = loss_fn(outputs, label_ids)
+        # grads = torch.autograd.grad(loss, head_mask, create_graph=True)[0]
+        # for layer in range(n_layers):
+        #     for head in range(n_heads):
+        #         hessian = torch.autograd.grad(grads[layer, head], head_mask, retain_graph=True)[0]
+        #         head_importance[layer, head] += hessian[layer, head].abs().detach()
+        #         # head_importance[layer, head] = head_importance[layer, head] + hessian.abs().detach()
 
-        for w1, b1, w2, current_importance in zip(intermediate_weight, intermediate_bias, output_weight, neuron_importance):
-            grads_w1 = torch.autograd.grad(loss, w1, create_graph=True)[0]
-            grads_b1 = torch.autograd.grad(loss, b1, create_graph=True)[0]
-            grads_w2 = torch.autograd.grad(loss, w2, create_graph=True)[0]
+        # for w1, b1, w2, current_importance in zip(intermediate_weight, intermediate_bias, output_weight, neuron_importance):
+        #     grads_w1 = torch.autograd.grad(loss, w1, create_graph=True)[0]
+        #     grads_b1 = torch.autograd.grad(loss, b1, create_graph=True)[0]
+        #     grads_w2 = torch.autograd.grad(loss, w2, create_graph=True)[0]
 
-            hessian_w1 = torch.autograd.grad(grads_w1.sum(), w1, retain_graph=True)[0]
-            hessian_b1 = torch.autograd.grad(grads_b1.sum(), b1, retain_graph=True)[0]
-            hessian_w2 = torch.autograd.grad(grads_w2.sum(), w2, retain_graph=True)[0]
+        #     hessian_w1 = torch.autograd.grad(grads_w1.sum(), w1, retain_graph=True)[0]
+        #     hessian_b1 = torch.autograd.grad(grads_b1.sum(), b1, retain_graph=True)[0]
+        #     hessian_w2 = torch.autograd.grad(grads_w2.sum(), w2, retain_graph=True)[0]
 
-            current_importance += (hessian_w1 * w1).sum(dim=1).abs().detach()
-            current_importance += (hessian_b1 * b1).abs().detach()
-            current_importance += (hessian_w2 * w2).sum(dim=0).abs().detach()
+        #     current_importance += (hessian_w1 * w1).sum(dim=1).abs().detach()
+        #     current_importance += (hessian_b1 * b1).abs().detach()
+        #     current_importance += (hessian_w2 * w2).sum(dim=0).abs().detach()
 
-        break
+        # break
     return head_importance, neuron_importance #好吧 实际上neuron_importance根本就没做，都是空的，在reorder_head_neuron.py里也把neuron相关的删掉了，太逗了
 
 def reorder_neuron_head(model, head_importance, neuron_importance):
@@ -298,8 +314,7 @@ def train(
     model, train_data, eval_data, device,
     mode = "finetuning", width_list = None,
     weights_file = None, model_path = "./",
-    loss_fn=nn.CrossEntropyLoss(), epochs=10,depth_list=None,
-        **args
+    loss_fn=nn.CrossEntropyLoss(), epochs=10,depth_list=None,logger=None,savedir=None,test_loader=None,**args
     ):
     assert mode in ["finetuning", "width", "depth"], "Wrong mode input"
 
@@ -315,7 +330,7 @@ def train(
         train_model(model, path=model_path,
                     train_data=train_data, eval_data=eval_data,
                     epochs=epochs, loss_fn=loss_fn,
-                    optimizer=optimizer, scheduler=scheduler, device=device
+                    optimizer=optimizer, scheduler=scheduler, device=device,logger=logger,test_loader=test_loader
                     )
     
     if mode == "width":
@@ -357,33 +372,35 @@ def train(
                 eval_data, model, args["depth"], args["heads"],
                 loss_fn=loss_fn, device=device
                 )
-            visualize_head_importance(head_importance)
-            visualize_neuron_importance(neuron_importance)
+            ##-------------------重要性可视化------------------
+            # visualize_head_importance(head_importance,savedir)
+            # visualize_neuron_importance(neuron_importance,savedir)
+
             # reorder_neuron_head(model, head_importance, neuron_importance) #这里是将其按重要性排序的 草 跑不了就别跑 nnd
             #width_list = sorted(width_list, reverse=True)
             for i, width in enumerate(tqdm(width_list, desc="Width", leave=False)):
-                print(f"\nWidth: {width}")
+                logger.info(f"\nWidth: {width}")
                 model.apply(lambda m: setattr(m, 'width_mult', width))
-                path = os.path.join("code/modelshessian2", f"Width{width}_model_width_distillation.pt")
+                path = os.path.join(savedir, f"Width{width}_model_width_distillation.pt")
                 train_distillation(
                     model, teacher_model = teacher_model,path=path,
                     train_data = train_data, eval_data = eval_data,
                     epochs = 1, device=device,
-                    optimizer=optimizer, scheduler=scheduler,loss_fn=loss_fn
+                    optimizer=optimizer, scheduler=scheduler,loss_fn=loss_fn,logger=logger,test_loader=test_loader
                 )
                 model.load_state_dict(new_weights, strict=False)
-            print("Fine tuning after distillation")
+            logger.info("Fine tuning after distillation")
             for i, width in enumerate(tqdm(width_list, desc="Width", leave=False)):
-                path = os.path.join("code/modelshessian2", f"Width{width}_model_width_distillation.pt")
-                print(f"\nWidth: {width}")
+                path = os.path.join(savedir, f"Width{width}_model_width_distillation.pt")
+                logger.info(f"\nWidth: {width}")
                 model.apply(lambda m: setattr(m, 'width_mult', width))
                 train_model(
                     model, path = path,
                     train_data=train_data, eval_data = eval_data,
                     epochs=epochs, loss_fn =loss_fn,
-                    optimizer=optimizer, scheduler=scheduler, device=device
+                    optimizer=optimizer, scheduler=scheduler, device=device,logger=logger,test_loader=test_loader
                 )
-                model.load_state_dict(torch.load(path))
+                model.load_state_dict(torch.load(path), strict=False)
 
     if mode == "depth":
         width_list = sorted(width_list, reverse=True)
@@ -405,30 +422,32 @@ def train(
             )
             teacher_model.apply(lambda m: setattr(m, 'width_mult', width))
             teacher_model.to(device)
-            path = os.path.join("code/modelshessian2", f"Width{width}_model_width_distillation.pt")
-            teacher_model.load_state_dict(torch.load(path))
+            path = os.path.join(model_path, f"Width{width}_model_width_distillation.pt")
+            # path = os.path.join(model_path, f"Width{width}_model_width_distillation.pt")
+            teacher_model.load_state_dict(torch.load(path), strict=False)
             for i, depth in enumerate(tqdm(depth_list, desc="Depth", leave=False)):
                 model.apply(lambda m: setattr(m, 'width_mult', width))
                 model.apply(lambda m: setattr(m, 'depth', depth))
-                path = os.path.join("code/modelshessian2", f"Width{width}_Depth{depth}_model_width_distillation.pt")
-                print("Training Distillation")
+                path = os.path.join(savedir, f"Width{width}_Depth{depth}_model_width_distillation.pt")
+                logger.info(path)
+                logger.info("Training Distillation")
                 train_distillation(
                     model, teacher_model=teacher_model, path=path,
                     train_data=train_data, eval_data=eval_data,
                     epochs=epochs, device=device,
-                    optimizer=optimizer, scheduler=scheduler, loss_fn=loss_fn
+                    optimizer=optimizer, scheduler=scheduler, loss_fn=loss_fn,logger=logger,test_loader=test_loader
                 )
-                model.load_state_dict(torch.load(path))#为啥会报错找不到文件夹。。
+                model.load_state_dict(torch.load(path), strict=False)#为啥会报错找不到文件夹。。
 
 
-def train_model(model, train_data, eval_data, path, epochs, loss_fn, optimizer, scheduler, device='cuda', **args):
+def train_model(model, train_data, eval_data, path, epochs, loss_fn, optimizer, scheduler, device='cuda', logger=None,test_loader=None,**args):
     model.train()
     best_eval_loss = 1e8
     model.to(device)
     
     for epoch in tqdm(range(epochs), desc="Epochs", leave=False):
         total_loss = 0.0
-        print(f"\nEpoch: {epoch}")
+        logger.info(f"Epoch: {epoch}")
 
         for i, data in enumerate(tqdm(train_data, desc="Training", leave=False)):
             inputs, labels = tuple(t.to(device) for t in data)
@@ -440,7 +459,7 @@ def train_model(model, train_data, eval_data, path, epochs, loss_fn, optimizer, 
 
             total_loss += loss.item()*inputs.size(0)
 
-        print(f"Train loss = {total_loss/len(train_data.sampler)}")
+        logger.info(f"Train loss = {total_loss/len(train_data.sampler):.4f}")
 
         model.eval()
         eval_loss = 0.0
@@ -459,9 +478,41 @@ def train_model(model, train_data, eval_data, path, epochs, loss_fn, optimizer, 
 
         if eval_loss < best_eval_loss:
             torch.save(model.state_dict(), path)
+            logger.info(f'存到{path}')
             best_eval_loss = eval_loss
 
-        print(f"Validation loss = {eval_loss}")
+        logger.info(f"Validation loss = {eval_loss:.4f}")
+
+        logger.info(path)
+        # model.load_state_dict(torch.load(path,weights_only=True), strict=False)
+
+        model.to(device)
+        model.eval()
+        correct = 0
+        total = 0
+        with torch.no_grad():
+            for i, data in enumerate(tqdm(test_loader, desc="Evaluating", leave=False)):
+                inputs, labels = tuple(t.to(device) for t in data)
+                outputs = model(inputs)
+                _, predicted = torch.max(outputs.data, 1)
+                total += labels.size(0)
+                correct += (predicted == labels).sum().item()
+
+        accuracy = 100 * correct / total
+        logger.info(f'Accuracy of the  network on the test images: %0.2f %%' % accuracy)
+        num_params = sum(p.numel() for p in model.parameters())
+        logger.info('Number of parameters: %d' % num_params)
+        inputs, _ = next(iter(test_loader))
+        inputs = inputs.to(device)
+        with torch.no_grad():
+            start_time = time.time()
+            outputs = model(inputs)
+            end_time = time.time()
+        inference_time = end_time - start_time
+        logger.info('Inference time: %.2fms' % (inference_time * 1000))
+        flops, params = profile(model, inputs=(inputs,))
+        logger.info('Number of parameters: %d' % params)
+        logger.info('FLOPS: %.2fG' % (flops / 1e9))
 
 def train_naive(model, train_data, eval_data, path, epochs, loss_fn, 
                         width_list, optimizer, scheduler, layernorm=False, device='cuda', **args):
@@ -633,7 +684,7 @@ def train_incremental(model, train_data, eval_data, path,
         print(f"Validation loss = {eval_loss}")
 
 def train_distillation(model, teacher_model, train_data, eval_data, path,
-                      epochs, optimizer, scheduler, loss_fn, device='cuda',lambda1=0.5, lambda2=0.5,
+                      epochs, optimizer, scheduler, loss_fn, device='cuda',lambda1=0.5, lambda2=0.5,logger=None,test_loader=None,
                       **args):
     model.train()
     best_eval_loss = 1e8
@@ -646,7 +697,7 @@ def train_distillation(model, teacher_model, train_data, eval_data, path,
 
     for epoch in tqdm(range(epochs), desc="Epochs", leave=False):
         total_loss = 0.0
-        print(f"\nEpoch: {epoch}")
+        logger.info(f"\nEpoch: {epoch}")
 
         for i, data in enumerate(tqdm(train_data, desc="Training", leave=False)):
             inputs, labels = tuple(t.to(device) for t in data)
@@ -664,7 +715,7 @@ def train_distillation(model, teacher_model, train_data, eval_data, path,
 
             total_loss += loss.item()*inputs.size(0)
 
-        print(f"Train loss = {total_loss/len(train_data.sampler)}")
+        logger.info(f"Train loss = {total_loss/len(train_data.sampler)}")
 
         # model.eval()
         # eval_loss = 0.0
@@ -701,7 +752,7 @@ def train_distillation(model, teacher_model, train_data, eval_data, path,
         # if eval_loss < best_eval_loss:
         #     torch.save(model.state_dict(), path)
         #     best_eval_loss = eval_loss
-        
+                
         model.eval()
         eval_loss = 0.0
 
@@ -719,7 +770,67 @@ def train_distillation(model, teacher_model, train_data, eval_data, path,
             torch.save(model.state_dict(), path)#草 就这行 老是存不了
             best_eval_loss = eval_loss
 
-        print(f"Validation loss = {eval_loss}")
+        logger.info(f"Validation loss = {eval_loss}")
+
+        model.to(device)
+        model.eval()
+        correct = 0
+        total = 0
+        with torch.no_grad():
+            for i, data in enumerate(tqdm(eval_data, desc="Evaluating", leave=False)):
+                inputs, labels = tuple(t.to(device) for t in data)
+                outputs = model(inputs)
+                _, predicted = torch.max(outputs.data, 1)
+                total += labels.size(0)
+                correct += (predicted == labels).sum().item()
+
+        accuracy = 100 * correct / total
+        logger.info(f'Accuracy of the  network on the test images: %0.2f %%' % accuracy)
+        num_params = sum(p.numel() for p in model.parameters())
+        logger.info('Number of parameters: %d' % num_params)
+        inputs, _ = next(iter(eval_data))
+        inputs = inputs.to(device)
+        with torch.no_grad():
+            start_time = time.time()
+            outputs = model(inputs)
+            end_time = time.time()
+        inference_time = end_time - start_time
+        logger.info('Inference time: %.2fms' % (inference_time * 1000))
+        flops, params = profile(model, inputs=(inputs,))
+        logger.info('Number of parameters: %d' % params)
+        logger.info('FLOPS: %.2fG' % (flops / 1e9))
+
+        logger.info(path)
+        # model.load_state_dict(torch.load(path,weights_only=True), strict=False)
+
+        model.to(device)
+        model.eval()
+        correct = 0
+        total = 0
+        with torch.no_grad():
+            for i, data in enumerate(tqdm(test_loader, desc="Evaluating", leave=False)):
+                inputs, labels = tuple(t.to(device) for t in data)
+                outputs = model(inputs)
+                _, predicted = torch.max(outputs.data, 1)
+                total += labels.size(0)
+                correct += (predicted == labels).sum().item()
+
+        accuracy = 100 * correct / total
+        logger.info(f'Accuracy of the  network on the test images: %0.2f %%' % accuracy)
+        num_params = sum(p.numel() for p in model.parameters())
+        logger.info('Number of parameters: %d' % num_params)
+        inputs, _ = next(iter(test_loader))
+        inputs = inputs.to(device)
+        with torch.no_grad():
+            start_time = time.time()
+            outputs = model(inputs)
+            end_time = time.time()
+        inference_time = end_time - start_time
+        logger.info('Inference time: %.2fms' % (inference_time * 1000))
+        flops, params = profile(model, inputs=(inputs,))
+        logger.info('Number of parameters: %d' % params)
+        logger.info('FLOPS: %.2fG' % (flops / 1e9))
+
 
         
 
