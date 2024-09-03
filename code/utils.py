@@ -478,6 +478,7 @@ def train_model(model, train_data, eval_data, path, epochs, loss_fn, optimizer, 
 
         if eval_loss < best_eval_loss:
             torch.save(model.state_dict(), path)
+            logger.info(f'存到{path}')
             best_eval_loss = eval_loss
 
         logger.info(f"Validation loss = {eval_loss:.4f}")

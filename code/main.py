@@ -3,8 +3,8 @@
 # python ./code/main.py --num_classes 200 --batch_size 256 --device "cuda:0" --training_phase "finetuning" --save_path  "vit-small-224-finetuned-.pth" --epoch 50  --model_path "vit-small-224-.pth" --model_architecture "vit_small_patch16_224.augreg_in21k_ft_in1k" --img_size 224
 # python ./code/main.py --num_classes 200 --batch_size 128 --device "cuda:1" --training_phase "finetuning" --save_path  "vit-base-224-finetuned-.pth" --epoch 50  --model_path "vit-base-224-.pth" --model_architecture "vit_base_patch16_224.augreg_in21k_ft_in1k" --img_size 224
 
-# python ./code/main.py --num_classes 200 --batch_size 128 --device "cuda:0" --training_phase "width" --save_path  "code/output/train/0901smallfine/vit-small-224-finetuned-8225.pth" --epoch 10  --model_architecture "vit_small_patch16_224.augreg_in21k_ft_in1k" --img_size 224
-# python ./code/main.py --num_classes 200 --batch_size 128 --device "cuda:1" --training_phase "width" --save_path  "code/output/train/0901smallfine/vit-small-224-finetuned-8225.pth" --epoch 100  --model_architecture "vit_base_patch16_224.augreg_in21k_ft_in1k" --img_size 224
+# python ./code/main.py --num_classes 200 --batch_size 128 --device "cuda:0" --training_phase "width" --save_path  "code/output/train/0901smallfine/vit-small-224-finetuned-8225.pth" --epoch 20  --model_architecture "vit_small_patch16_224.augreg_in21k_ft_in1k" --img_size 224
+# python ./code/main.py --num_classes 200 --batch_size 128 --device "cuda:1" --training_phase "width" --save_path  "code/output/train/0901basefine/vit-base-224-finetuned-7864.pth" --epoch 20  --model_architecture "vit_base_patch16_224.augreg_in21k_ft_in1k" --img_size 224 --embed_dim 768
 
 
 
@@ -152,7 +152,7 @@ args = parser.parse_args()
 
 path_cifar = './'
 date = datetime.today().strftime("%m%d")
-save_dir = str(increment_path(Path(ROOT / "output" / "train" / f'{date}smallwidth'), exist_ok=False))
+save_dir = str(increment_path(Path(ROOT / "output" / "train" / f'{date}basewidth'), exist_ok=False))
 logdir = os.path.join(save_dir,'log.txt')
 save_path = os.path.join(save_dir,args.save_path)
 model_path = os.path.join(save_dir,args.model_path)

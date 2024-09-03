@@ -111,7 +111,7 @@ FILE = Path(__file__).resolve()
 ROOT = FILE.parents[0]  # YOLOv5 root directory
 ROOT = Path(os.path.relpath(ROOT, Path.cwd()))  # relative
 date = datetime.today().strftime("%m%d")
-save_dir = str(increment_path(Path(ROOT / "output" / "test" / f'{date}Sfine'), exist_ok=False))
+save_dir = str(increment_path(Path(ROOT / "output" / "test" / f'{date}Bfine'), exist_ok=False))
 # save_dir = str(increment_path(Path(ROOT / "output" / "test" /'0824entro-'), exist_ok=False))
 logdir = os.path.join(save_dir,'log.txt')
 logger = get_logger(logdir)
@@ -247,7 +247,7 @@ model = VisionTransformer(
 #         logger.info('FLOPS: %.2fG' % (flops / 1e9))
 
 
-path = os.path.join("/home/jiangxiaotian/workspace/ViT_pruning/code/output/train/0901basefine/vit-base-224-finetuned-.pth")
+path = os.path.join("/home/jiangxiaotian/workspace/ViT_pruning/code/output/train/0901basefine/vit-base-224-finetuned-7864.pth")
 logger.info(path)
 
 model = timm.create_model(args.model_architecture, pretrained=False)
